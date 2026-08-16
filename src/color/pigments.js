@@ -1,0 +1,28 @@
+// 颜料预设库 v0（24 色，马利水彩常用色）
+// granulation 0..1 颗粒度（重颜料沉纸谷）；staining 0..1 着色力（渗入纤维难洗）
+export const PIGMENTS = [
+  { name: "锌白", hex: "#f4efe2", granulation: 0.05, staining: 0.15 },
+  { name: "柠檬黄", hex: "#f0d43c", granulation: 0.10, staining: 0.30 },
+  { name: "中镉黄", hex: "#e8b23a", granulation: 0.15, staining: 0.35 },
+  { name: "土黄", hex: "#c99a3f", granulation: 0.30, staining: 0.25 },
+  { name: "桔黄", hex: "#e07b28", granulation: 0.20, staining: 0.45 },
+  { name: "朱红", hex: "#d84a2a", granulation: 0.25, staining: 0.50 },
+  { name: "大红", hex: "#c22f35", granulation: 0.20, staining: 0.65 },
+  { name: "深红", hex: "#8e2438", granulation: 0.30, staining: 0.75 },
+  { name: "玫瑰红", hex: "#c44a78", granulation: 0.20, staining: 0.80 },
+  { name: "紫罗兰", hex: "#6f4a9e", granulation: 0.35, staining: 0.60 },
+  { name: "群青", hex: "#3a4a7a", granulation: 0.90, staining: 0.40 },
+  { name: "钴蓝", hex: "#2f5f9e", granulation: 0.60, staining: 0.45 },
+  { name: "湖蓝", hex: "#3d8fbf", granulation: 0.25, staining: 0.55 },
+  { name: "普蓝", hex: "#1f3d5e", granulation: 0.35, staining: 0.85 },
+  { name: "翠绿", hex: "#2e8f5b", granulation: 0.30, staining: 0.50 },
+  { name: "深绿", hex: "#1f5e3d", granulation: 0.30, staining: 0.60 },
+  { name: "草绿", hex: "#5d8f3d", granulation: 0.25, staining: 0.45 },
+  { name: "橄榄绿", hex: "#6f7a3d", granulation: 0.45, staining: 0.35 },
+  { name: "赭石", hex: "#b07a3a", granulation: 0.70, staining: 0.30 },
+  { name: "熟褐", hex: "#8a5232", granulation: 0.50, staining: 0.40 },
+  { name: "生褐", hex: "#5d4030", granulation: 0.80, staining: 0.35 },
+  { name: "佩恩灰", hex: "#3d4a55", granulation: 0.50, staining: 0.70 },
+  { name: "象牙黑", hex: "#2a2a2e", granulation: 0.40, staining: 0.75 },
+  { name: "天蓝", hex: "#6fb5d8", granulation: 0.15, staining: 0.40 },
+];

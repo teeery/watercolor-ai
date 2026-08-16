@@ -1,0 +1,17 @@
+{
+  "name": "watercolor-ai",
+  "version": "0.2.0",
+  "description": "Agent watercolor painter — medium engine (perceptual watercolor signatures, zero deps)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "demo": "node demo/render-demo.js",
+    "demo:spectral": "cross-env COLOR_SYSTEM=spectral node demo/render-demo.js",
+    "effects": "node demo/effects.js",
+    "chart": "node demo/color-chart.js",
+    "metrics": "node demo/color-metrics.js",
+    "compare": "node demo/compare.js",
+    "smoke": "node demo/smoke.js"
+  }
+}

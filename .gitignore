@@ -1,0 +1,18 @@
+# 依赖与生成物
+node_modules/
+.venv-ows/
+*.log
+
+# 渲染产物（可重新生成：node demo/*.js）
+out/
+
+# 探测实验的中间产物（OWS 渲染图/官方 demo，源码与评估文档保留）
+probe/ows/*_out*/
+probe/ows/gif_frames/
+probe/ows/demo.gif
+probe/ows/demo.png
+probe/ows/gif-test-*.gif
+
+# 系统文件
+Thumbs.db
+.DS_Store

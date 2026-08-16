@@ -1,0 +1,631 @@
+// 水彩介质引擎核心（感知签名版，Curtis-lite）—— 通道数泛化版
+// 场：W 水量 / P[c] 溶液颜料（NCH 通道）/ D[c] 沉积颜料 / Pm,Dm 质量 / M 湿掩码 / ux,uy 流速
+// 每步管线：流场 → 水平流 → 颜料平流 → 沉积 → 前缘沉积(回流环) → 边缘加深 → 蒸发(咖啡环) → 冻结
+// 通道语义由颜色系统（src/color/system.js）定义：RGB 系统 NCH=3；光谱系统 NCH=16。
+// 引擎只搬运"每通道 K·d 吸收量"与质量 d，不理解通道含义 → 颜色/介质解耦。
+// 参考：docs/watercolor_engine_spec.md（Hobbs 指南 + Curtis US6198489）
+import { makePaper } from "../paper/paper.js";
+import { fbm2D, valueNoise2D } from "../paper/noise.js";
+
+const CLAMP = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+function bilerpAt(src, i00, tx, ty, w) {
+  const v00 = src[i00], v10 = src[i00 + 1], v01 = src[i00 + w], v11 = src[i00 + w + 1];
+  const a = v00 + (v10 - v00) * tx, b = v01 + (v11 - v01) * tx;
+  return a + (b - a) * ty;
+}
+
+export class WatercolorEngine {
+  /**
+   * @param {object} opt { w, h, seed, params?, channels=3 }
+   * channels = 颜料通道数（由 ColorSystem 决定）
+   */
+  constructor({ w = 640, h = 480, seed = 0, params = {}, channels = 3 } = {}) {
+    this.w = w;
+    this.h = h;
+    this.n = w * h;
+    this.seed = seed;
+    this.stepCount = 0;
+    this.ch = channels;
+
+    this.paper = makePaper(w, h, { seed: seed, ...params.paper });
+
+    this.W = new Float32Array(this.n);
+    this.P = Array.from({ length: channels }, () => new Float32Array(this.n));
+    this.D = Array.from({ length: channels }, () => new Float32Array(this.n));
+    this.Pm = new Float32Array(this.n);
+    this.Dm = new Float32Array(this.n);
+    this.M = new Uint8Array(this.n);
+    this.ux = new Float32Array(this.n); this.uy = new Float32Array(this.n);
+    // scratch（每通道一份，供平流/回流算子用）
+    this._sP = Array.from({ length: channels }, () => new Float32Array(this.n));
+    this._s2 = new Float32Array(this.n);
+    this._s3 = new Float32Array(this.n);
+    this._Mb = new Float32Array(this.n);
+    this._T = new Uint8Array(this.n);
+
+    // 默认参数（每步率）
+    this.p = {
+      kPress: 0.4,      // 压力→流速
+      gravity: 0.025,   // 重力（向下）
+      advCoef: 0.9,     // 水半拉格朗日系数
+      kDiff: 0.075,     // 水扩散
+      theta: 0.10,      // 湿掩码扩张阈值
+      deposit: 0.028,   // 沉积率/步（低 → 颜料保持流动，回流才有料可推）
+      exposure: 1.5,    // 纸高对沉积的影响
+      frontDeposit: 0.18, // 前缘(0→1)沉积率 → 回流环
+      edgeK: 0.45,      // 湿区边缘加深率
+      blurR: 3,         // 边缘模糊半径（格）
+      evap: 0.010,      // 蒸发率/步
+      evapEdge: 2.5,    // 边缘蒸发加速
+      epsDry: 0.004,    // 冻结阈值
+      pigAdv: 0.65,     // 颜料半拉格朗日系数（滞后于水 → 水走前、颜料留后）
+      ...params,
+    };
+
+    // 当前颜料属性（每笔设置）：K = 每通道吸收/散射比 × 单位质量
+    this.pigment = { K: new Float32Array(channels), granulation: 0.5, staining: 0.5 };
+
+    this._bbox = { x0: 0, y0: 0, x1: 0, y1: 0, valid: false };
+    this.debugHook = null; // (stageName, engine) => void
+  }
+
+  /** K：单位质量的每通道吸收系数（由 ColorSystem.pigmentBasis 提供）；granulation/staining 0..1 */
+  setPigment({ K, granulation = 0.5, staining = 0.5 }) {
+    this.pigment.K.set(K);
+    this.pigment.granulation = granulation;
+    this.pigment.staining = staining;
+  }
+
+  /** 溶液总吸收量（任意通道） */
+  solutionTotal(i) {
+    let s = 0;
+    for (let c = 0; c < this.ch; c++) s += this.P[c][i];
+    return s;
+  }
+
+  /** 沉积注入：mask 为 [0,1] Float32Array（已含形状与软边），water 0..1，amount 颜料质量 */
+  depositMask(mask, { water = 0.5, amount = 0.8 } = {}) {
+    const { W, P, Pm, D, Dm, M, ch } = this;
+    const { C, G } = this.paper;
+    const K = this.pigment.K;
+    const bbox = this._bbox;
+    let x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
+    for (let y = 0; y < this.h; y++) {
+      const row = y * this.w;
+      for (let x = 0; x < this.w; x++) {
+        const i = row + x;
+        const m = mask[i];
+        if (m <= 0) continue;
+        W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
+        const aM = amount * m;
+        if (!M[i]) {
+          // 新湿格：笔触边界即刻钉出前缘沉积线（水彩标志性深边）
+          const grain = G[i] - 0.5;
+          const fk = this.p.frontDeposit * (0.6 + 0.8 * grain);
+          for (let c = 0; c < ch; c++) {
+            const aK = K[c] * aM;
+            D[c][i] += aK * fk;
+            P[c][i] += aK * (1 - fk);
+          }
+          Dm[i] += aM * fk;
+          Pm[i] += aM * (1 - fk);
+          M[i] = 1;
+        } else {
+          for (let c = 0; c < ch; c++) P[c][i] += K[c] * aM;
+          Pm[i] += aM;
+        }
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+    if (x1 >= x0) {
+      if (!bbox.valid) { bbox.x0 = x0; bbox.y0 = y0; bbox.x1 = x1; bbox.y1 = y1; bbox.valid = true; }
+      else {
+        if (x0 < bbox.x0) bbox.x0 = x0;
+        if (y0 < bbox.y0) bbox.y0 = y0;
+        if (x1 > bbox.x1) bbox.x1 = x1;
+        if (y1 > bbox.y1) bbox.y1 = y1;
+      }
+    }
+  }
+
+  /** 清色（lift）：mask 内溶液与沉积按比例移除，加少量水；
+   *  dir = 擦拭方向（弧度），残留噪声沿该方向拉伸 → 平行条纹沟槽 */
+  liftMask(mask, { liftP = 0.6, liftD = 0.35, water = 0.3, dir = 0 } = {}) {
+    const { w, h, W, P, Pm, D, Dm, ch } = this;
+    const ca = Math.cos(dir), sa = Math.sin(dir);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        const i = row + x;
+        const m = mask[i];
+        if (m <= 0) continue;
+        const a = x * ca + y * sa;
+        const bb = -x * sa + y * ca;
+        const streak = 0.4 + 1.2 * Math.abs(valueNoise2D(a * 0.06 + 5.3, bb * 0.5, 89) - 0.5);
+        const kP = 1 - liftP * m * streak;
+        const kD = 1 - liftD * m * streak;
+        for (let c = 0; c < ch; c++) { P[c][i] *= kP; D[c][i] *= kD; }
+        Pm[i] *= kP; Dm[i] *= kD;
+        W[i] = Math.min(2.0, W[i] + water * m);
+      }
+    }
+  }
+
+  /** 清水滴回流开花算子（显式搬运版，通道泛化）：
+   *  内区 (d<Rθ) 溶液+沉积颜料按比例扣走 → 沿同角度搬到噪声调制的前沿带钉入沉积
+   *  → 深色蕾丝环必然成形；滴心稀释 → 浅色水渍心。 */
+  pushPigmentRadial(cx, cy, radius, strength = 24) {
+    const { w, h, P, Pm, D, Dm, paper, ch, _sP } = this;
+    const { F } = paper;
+    for (let c = 0; c < ch; c++) _sP[c].set(P[c]);
+    const R = radius + strength + 4;
+    const x0 = Math.max(0, Math.floor(cx - R));
+    const x1 = Math.min(w - 1, Math.ceil(cx + R));
+    const y0 = Math.max(0, Math.floor(cy - R));
+    const y1 = Math.min(h - 1, Math.ceil(cy + R));
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const dx = x - cx, dy = y - cy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        const ang = Math.atan2(dy, dx);
+        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
+        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
+        const nA = 0.7 * nA1 + 0.3 * nA2;
+        const Rθ = radius * (1 + 0.42 * (nA - 0.5) * 2);
+        // 圆心格：只扣走、无搬运目的地（消除中心黑点伪影）
+        if (d <= 0.01) {
+          const k = 0.55;
+          for (let c = 0; c < ch; c++) { P[c][i] *= 1 - k; D[c][i] *= 1 - k; }
+          Pm[i] *= 1 - k; Dm[i] *= 1 - k;
+          continue;
+        }
+        if (d >= Rθ) continue;
+        const nz = (F[i] - 0.5) * 1.6;
+        const k = 0.45 * (0.7 + 0.6 * nz);
+        const mv = new Array(ch);
+        let total = 0;
+        for (let c = 0; c < ch; c++) {
+          const pc = _sP[c][i] * k, dc = D[c][i] * k;
+          P[c][i] = _sP[c][i] - pc;
+          D[c][i] -= dc;
+          mv[c] = (pc + dc) * 0.9;
+          total += mv[c];
+        }
+        const pmv = Pm[i] * k, dmv = Dm[i] * k;
+        Pm[i] -= pmv; Dm[i] -= dmv;
+        const mm = (pmv + dmv) * 0.9;
+        if (total <= 1e-6) continue;
+        const inv = 1 / d;
+        const nx = dx * inv, ny = dy * inv;
+        const aJit = (F[(x + 29) % w + ((y + 7) % h) * w] - 0.5) * 0.35;
+        const ca = Math.cos(ang + aJit), sa = Math.sin(ang + aJit);
+        const jit = (F[(x + 17) % w + ((y + 13) % h) * w] - 0.5) * radius * 0.28;
+        const destR = Rθ * (1 + 0.08 * nz) + jit;
+        const petal = 0.5 + 0.5 * (nA - 0.5) * 2;
+        const bandW = 1.5 + 2.5 * (0.5 + 0.5 * nz);
+        const splat = (rr, frac) => {
+          let fx = cx + ca * rr, fy = cy + sa * rr;
+          fx = fx < 0 ? 0 : fx > w - 1.001 ? w - 1.001 : fx;
+          fy = fy < 0 ? 0 : fy > h - 1.001 ? h - 1.001 : fy;
+          const x0f = fx | 0, y0f = fy | 0, tx = fx - x0f, ty = fy - y0f;
+          const f = frac * petal;
+          const j00 = y0f * w + x0f;
+          const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+          for (let c = 0; c < ch; c++) {
+            const mc = mv[c] * f;
+            D[c][j00] += mc * w00; D[c][j00 + 1] += mc * w10; D[c][j00 + w] += mc * w01; D[c][j00 + w + 1] += mc * w11;
+          }
+          const mf = mm * f;
+          Dm[j00] += mf * w00; Dm[j00 + 1] += mf * w10; Dm[j00 + w] += mf * w01; Dm[j00 + w + 1] += mf * w11;
+        };
+        splat(destR - 1, 0.5);
+        splat(destR + bandW * 0.5, 0.32);
+        splat(destR + bandW, 0.18);
+        splat(destR + bandW + 2, 0.08);
+        splat(destR + bandW + 5, 0.05);
+        splat(destR + bandW + 8, 0.02);
+        splat(0.62 * Rθ, 0.10);
+      }
+    }
+    // 解析增强：环带闭合性由构造保证
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const dx = x - cx, dy = y - cy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d <= 0.01 || d > radius + strength + 4) continue;
+        const ang = Math.atan2(dy, dx);
+        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
+        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
+        const nA = 0.7 * nA1 + 0.3 * nA2;
+        const Rθ = radius * (1 + 0.5 * (nA - 0.5) * 2);
+        let amb = 0;
+        for (let c = 0; c < ch; c++) amb += D[c][i] + P[c][i];
+        if (amb <= 1e-5) continue;
+        const t = Math.abs(d - Rθ);
+        if (t < 4.0) {
+          const wgt = (1 - t / 4.0) * (0.55 + 0.9 * (F[i] - 0.5));
+          const boost = 0.5 * wgt;
+          for (let c = 0; c < ch; c++) {
+            D[c][i] += (D[c][i] + P[c][i]) * boost;
+            P[c][i] *= 1 - boost;
+          }
+          Dm[i] += (Dm[i] + Pm[i]) * boost;
+          Pm[i] *= 1 - boost;
+        }
+        const t2 = Math.abs(d - 0.6 * Rθ);
+        if (t2 < 1.6) {
+          const wgt = (1 - t2 / 1.6) * 0.28;
+          for (let c = 0; c < ch; c++) {
+            D[c][i] += (D[c][i] + P[c][i]) * wgt;
+            P[c][i] *= 1 - wgt;
+          }
+          Dm[i] += (Dm[i] + Pm[i]) * wgt;
+          Pm[i] *= 1 - wgt;
+        }
+      }
+    }
+    // 滴心稀释：随角度（0.75×Rθ 以内）清到浅色——不切进向内凹的花瓣
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const dx = x - cx, dy = y - cy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d <= 0.01) continue;
+        const ang = Math.atan2(dy, dx);
+        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
+        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
+        const nA = 0.7 * nA1 + 0.3 * nA2;
+        const Rθ = radius * (1 + 0.5 * (nA - 0.5) * 2);
+        if (d < Rθ * 0.75) {
+          for (let c = 0; c < ch; c++) { P[c][i] *= 0.42; D[c][i] *= 0.55; }
+          Pm[i] *= 0.42; Dm[i] *= 0.55;
+        }
+      }
+    }
+  }
+
+  /** 推进 steps 步 */
+  step(steps = 1) {
+    for (let s = 0; s < steps; s++) this._stepOnce();
+  }
+
+  _stepOnce() {
+    const { w, h, n, W, P, Pm, D, Dm, M, ux, uy, p, paper, ch } = this;
+    const { H, G, F } = paper;
+    this.stepCount++;
+
+    if (this._bbox.valid && this.stepCount % 30 === 0) this._tightenBBox();
+
+    let { x0, y0, x1, y1 } = this._bbox;
+    if (!this._bbox.valid) {
+      this._evaporateTail();
+      return;
+    }
+    const pad = 2 + p.blurR;
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+    x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+    const hook = this.debugHook;
+    const mark = (name) => { if (hook) hook(name, this); };
+
+    // ---------- 1) 流场 ----------
+    const kPress = p.kPress, grav = p.gravity;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const wv = W[i];
+        if (wv <= 1e-4) { ux[i] = 0; uy[i] = 0; continue; }
+        const iL = x > 0 ? i - 1 : i, iR = x < w - 1 ? i + 1 : i;
+        const iU = y > 0 ? i - w : i, iD = y < h - 1 ? i + w : i;
+        ux[i] = -(W[iR] - W[iL]) * 0.5 * kPress + (G[i] - 0.5) * 0.06 * wv;
+        uy[i] = -(W[iD] - W[iU]) * 0.5 * kPress + grav * wv + (G[i] - 0.5) * 0.05 * wv;
+      }
+    }
+
+    // ---------- 2) 水半拉格朗日平流 + 扩散 ----------
+    mark("1-flow");
+    const adv = p.advCoef, kDiff = p.kDiff;
+    const sW = this._s2;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const wv = W[i];
+        if (wv <= 1e-5) { sW[i] = 0; continue; }
+        let wx = x - ux[i] * adv, wy = y - uy[i] * adv;
+        wx = CLAMP(wx, 0, w - 1.001); wy = CLAMP(wy, 0, h - 1.001);
+        const x0f = wx | 0, y0f = wy | 0, tx = wx - x0f, ty = wy - y0f;
+        const i00 = y0f * w + x0f;
+        const v00 = W[i00], v10 = W[i00 + 1], v01 = W[i00 + w], v11 = W[i00 + w + 1];
+        const a = v00 + (v10 - v00) * tx, b = v01 + (v11 - v01) * tx;
+        let nw = a + (b - a) * ty;
+        const wL = x > 0 ? W[i - 1] : wv, wR = x < w - 1 ? W[i + 1] : wv;
+        const wU = y > 0 ? W[i - w] : wv, wD = y < h - 1 ? W[i + w] : wv;
+        const lap = wL + wR + wU + wD - 4 * wv;
+        nw += kDiff * lap;
+        sW[i] = nw < 0 ? 0 : nw > 2 ? 2 : nw;
+      }
+    }
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) W[row + x] = sW[row + x];
+    }
+
+    // ---------- 3) 掩码扩张 + 前缘标记 ----------
+    mark("2-water");
+    const theta = p.theta, T = this._T;
+    T.fill(0);
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        if (!M[i] && W[i] > theta) { M[i] = 1; T[i] = 1; }
+      }
+    }
+
+    // ---------- 4) 颜料半拉格朗日平流（每通道） ----------
+    mark("3-expand");
+    const pigAdv = p.pigAdv;
+    for (let c = 0; c < ch; c++) {
+      const PC = P[c];
+      const sP = this._sP[c];
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) {
+          const i = row + x;
+          const pv = PC[i];
+          if (pv <= 1e-6) { sP[i] = 0; continue; }
+          let px = x - ux[i] * pigAdv, py = y - uy[i] * pigAdv;
+          px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
+          const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
+          const i00 = y0f * w + x0f;
+          sP[i] = bilerpAt(PC, i00, tx, ty, w);
+        }
+      }
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) PC[row + x] = sP[row + x];
+      }
+    }
+    // 质量通道同速平流
+    {
+      const sP = this._s2;
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) {
+          const i = row + x;
+          const pv = Pm[i];
+          if (pv <= 1e-6) { sP[i] = 0; continue; }
+          let px = x - ux[i] * pigAdv, py = y - uy[i] * pigAdv;
+          px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
+          const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
+          const i00 = y0f * w + x0f;
+          sP[i] = bilerpAt(Pm, i00, tx, ty, w);
+        }
+      }
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) Pm[row + x] = sP[row + x];
+      }
+    }
+
+    // ---------- 5) 沉积（纸谷偏置 + 细颗粒调制） ----------
+    mark("4-pigment");
+    const dep = p.deposit, expo = p.exposure;
+    const gran = this.pigment.granulation, stain = this.pigment.staining;
+    const depScale = dep * (0.4 + 1.2 * stain);
+    const granScale = gran * 1.8;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        if (!M[i]) continue;
+        const hb = H[i] - 0.5;
+        const grain = F[i] - 0.5;
+        let k = depScale * (1 + expo * hb) * (1 + granScale * grain);
+        k = k < 0 ? 0 : k > 0.5 ? 0.5 : k;
+        let total = 0;
+        for (let c = 0; c < ch; c++) total += P[c][i];
+        if (total <= 1e-6) continue;
+        for (let c = 0; c < ch; c++) {
+          const pc = P[c][i];
+          D[c][i] += pc * k;
+          P[c][i] = pc * (1 - k);
+        }
+        const pm = Pm[i];
+        Dm[i] += pm * k;
+        Pm[i] = pm * (1 - k);
+      }
+    }
+
+    // ---------- 6) 前缘沉积 ----------
+    mark("5-deposit");
+    const fd = p.frontDeposit;
+    if (fd > 0) {
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) {
+          const i = row + x;
+          if (!T[i]) continue;
+          let total = 0;
+          for (let c = 0; c < ch; c++) total += P[c][i];
+          if (total <= 1e-6) continue;
+          const grain = G[i] - 0.5;
+          let k = fd * (0.5 + 0.5 * grain);
+          k = k < 0 ? 0 : k > 0.8 ? 0.8 : k;
+          for (let c = 0; c < ch; c++) {
+            const pc = P[c][i];
+            D[c][i] += pc * k;
+            P[c][i] = pc * (1 - k);
+          }
+          const pm = Pm[i];
+          Dm[i] += pm * k;
+          Pm[i] = pm * (1 - k);
+        }
+      }
+    }
+
+    // ---------- 7) 湿区边缘加深 ----------
+    mark("6-front");
+    this._blurM(x0, y0, x1, y1, p.blurR);
+    const edgeK = p.edgeK, Mb = this._Mb;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        if (!M[i]) continue;
+        let e = Mb[i] - (M[i] ? 1 : 0);
+        if (e <= 0.02) continue;
+        e = e > 1 ? 1 : e;
+        const k = edgeK * e;
+        let total = 0;
+        for (let c = 0; c < ch; c++) total += P[c][i];
+        if (total <= 1e-6) continue;
+        for (let c = 0; c < ch; c++) {
+          const pc = P[c][i];
+          D[c][i] += pc * k;
+          P[c][i] = pc * (1 - k);
+        }
+        const pm = Pm[i];
+        Dm[i] += pm * k;
+        Pm[i] = pm * (1 - k);
+      }
+    }
+
+    // ---------- 8) 蒸发（边缘先干 + 咖啡环） ----------
+    mark("7-edge");
+    const evap = p.evap, evapEdge = p.evapEdge;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        const wv = W[i];
+        if (wv <= 1e-5) continue;
+        const e = Mb[i] - (M[i] ? 1 : 0);
+        const rate = evap * (1 + evapEdge * (e > 0 ? e : 0));
+        W[i] = wv * (1 - rate);
+        if (e > 0.04) {
+          const gx = Mb[i + 1] - Mb[i - 1];
+          const gy = Mb[i + w] - Mb[i - w];
+          const gl = Math.hypot(gx, gy);
+          if (gl > 1e-3) {
+            let ix = i + Math.round(gx / gl);
+            if (x === 0 || x === w - 1) ix = i;
+            let iy = i + w * Math.round(gy / gl);
+            if (y === 0 || y === h - 1) iy = i;
+            for (const ii of [ix, iy]) {
+              const k = 0.12 * (e > 1 ? 1 : e);
+              let total = 0;
+              for (let c = 0; c < ch; c++) total += P[c][ii];
+              if (total <= 1e-6) continue;
+              for (let c = 0; c < ch; c++) {
+                const pc = P[c][ii];
+                D[c][i] += pc * k;
+                P[c][ii] = pc * (1 - k);
+              }
+              const pm = Pm[ii];
+              Dm[i] += pm * k;
+              Pm[ii] = pm * (1 - k);
+            }
+          }
+        }
+      }
+    }
+
+    // ---------- 9) 冻结 ----------
+    mark("8-evap");
+    const eps = p.epsDry;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const i = row + x;
+        if (W[i] < eps) {
+          if (W[i] > 0) W[i] = 0;
+          let total = 0;
+          for (let c = 0; c < ch; c++) total += P[c][i];
+          if (M[i] && total > 1e-6) {
+            for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
+            Dm[i] += Pm[i]; Pm[i] = 0;
+          }
+          if (M[i]) M[i] = 0;
+        }
+      }
+    }
+    mark("9-freeze");
+  }
+
+  /** 全域尾水蒸发（bbox 失效后使用） */
+  _evaporateTail() {
+    const { W, P, Pm, D, Dm, p, ch } = this;
+    const evap = p.evap, eps = p.epsDry;
+    for (let i = 0; i < this.n; i++) {
+      const wv = W[i];
+      if (wv <= 0) continue;
+      const nw = wv * (1 - evap);
+      if (nw < eps) {
+        W[i] = 0;
+        for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
+        Dm[i] += Pm[i]; Pm[i] = 0;
+      } else {
+        W[i] = nw;
+      }
+    }
+  }
+
+  /** 湿掩码 box 模糊（_Mb = blur(M)） */
+  _blurM(x0, y0, x1, y1, r) {
+    const { w, M, _Mb, _s3 } = this;
+    const rad = r >= 1 ? r : 1;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      let acc = 0;
+      for (let x = x0 - rad; x <= x0 + rad; x++) acc += M[row + CLAMP(x, 0, w - 1)];
+      const inv = 1 / (2 * rad + 1);
+      for (let x = x0; x <= x1; x++) {
+        _s3[row + x] = acc * inv;
+        acc += M[row + CLAMP(x + rad + 1, 0, w - 1)] - M[row + CLAMP(x - rad, 0, w - 1)];
+      }
+    }
+    for (let x = x0; x <= x1; x++) {
+      let acc = 0;
+      for (let y = y0 - rad; y <= y0 + rad; y++) acc += _s3[CLAMP(y, 0, this.h - 1) * w + x];
+      const inv = 1 / (2 * rad + 1);
+      for (let y = y0; y <= y1; y++) {
+        _Mb[y * w + x] = acc * inv;
+        acc += _s3[CLAMP(y + rad + 1, 0, this.h - 1) * w + x] - _s3[CLAMP(y - rad, 0, this.h - 1) * w + x];
+      }
+    }
+  }
+
+  /** 每 30 步精确重算 bbox */
+  _tightenBBox() {
+    const { w, h, M } = this;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        if (M[row + x]) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 >= x0) { this._bbox = { x0, y0, x1, y1, valid: true }; }
+    else this._bbox = { x0: 0, y0: 0, x1: 0, y1: 0, valid: false };
+  }
+
+  /** 全画布还有多少水（干燥判定） */
+  totalWater() {
+    let s = 0;
+    const { W } = this;
+    for (let i = 0; i < this.n; i++) s += W[i];
+    return s;
+  }
+}

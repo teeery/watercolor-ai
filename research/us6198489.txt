@@ -1,0 +1,1368 @@
+USOO6198489B1
+(12) United States Patent
+(10) Patent No.: US 6,198,489 B1
+Salesin et al. (45) Date of Patent: Mar. 6, 2001
+(54) COMPUTER GENERATED WATERCOLOR Cockshott, Tunde, et al., “Modelling the Texture of Paint,”
+Eurographics 92, A. Kilgour and L. Kjelldahl (Guest Edi
+(75) Inventors: David H. Salesin; Cassidy Curtis, both tors), Blackwell Publishers, vol. 11 (1992), No. 3, (C) Euro
+of Seattle, WA (US); Sean Anderson, graphics Association, 1992, pp. C-2 17-C-226.
+Mountain View, CA (US); Joshua E.
+Dorsey, Julie, et al., “Modeling and Rendering Of Metallic
+Seims, Seattle, WA (US)
+Patinas,” Computer Graphics Proceedings, Annual Confer
+ence Series, 1996, pp. 387–396.
+(73) Assignee: University of Washington, Seattle, WA
+(US) Dorsey, Julie, et al., “Flow and Changes in Appearance,
+Computer Graphics Proceedings, Annual Conference Series,
+(*) Notice: Subject to any disclaimer, the term of this 1996, pp. 411-420.
+patent is extended or adjusted under 35
+Foster, Nick, et al., “Realistic Animation of Liquids.”
+U.S.C. 154(b) by 0 days.
+Graphics Interface '96, pp. 204-212.
+Guo, Qinglian, “Generating Realistic Calligraphy Words,”
+(21) Appl. No.: 09/025,412
+IEICE Trans. Fundamentals, vol. E78-A, No. 11, Nov. 1995,
+(22) Filed: Feb. 18, 1998 pp. 1556–1558.
+Guo, Qinglian, et al., “Modeling the Diffuse Paintings of
+Related U.S. Application Data
+Sumie,” pp. 329–338.
+(60) Provisional application No. 60/039,020, filed on Feb. 21,
+1997. Kass, Michael, et al., “Rapid, Stable Fluid Dynamics for
+Computer Graphics, Computer Graphics, Vol. 24, No. 4,
+(51) Int. Cl. ................................................... G06T 11/40
+Aug. 1990, pp. 49-55.
+(52) U.S. Cl. .............................................................. 345/431
+(58) Field of Search ...................................... 345/429-432 (List continued on next page.)
+(56) References Cited
+Primary Examiner Mark R. Powell
+U.S. PATENT DOCUMENTS Assistant Examiner Thu Nguyen
+5,384,899 1/1995 Amit .................................... 345/429 (57) ABSTRACT
+5,432,896 * 7/1995 Hwong et al. ... 345/429
+5,784,301 : 7/1998 Guo et al. ..... 395/500.27 A watercolor model based on an ordered Set of translucent
+5,828.819 : 10/1998 Do et al. .............................. 345/431 glazes, which are created independently usinig a shallow
+OTHER PUBLICATIONS water fluid Simulation. A Kubelka-Munk compositing model
+is used for Simulating the optical effect of the Superimposed
+Chet S. Haase and Gary W. Meyer, “Modeling Pigmented glazes. The computer generated watercolor model is used as
+Materials for Realistic Image Synthesis”, ACM Transactions part of an interactive watercolor paint System, or as a method
+on Graphics, vol. 11, No. 4, Oct. 1992, pp. 305-335, 1992.* for automatic image “watercolorization.”
+“Modeling and Rendering of Metallic Patinas' Julie Dorsey
+and Pat Hanrahan, Computer Graphics Proceedings, 1996.*
+24 Claims, 14 Drawing Sheets
+Chen, Jim X., et al., “Towards Interactive-Rate Simulation
+of Fluids with Moving Obstacles Using Navier-Stokes
+Equations, Graphical Models and Image Processing, Vol.
+57, No. 2, Mar, 1995, pp. 107-116. (3 of 14 Drawing Sheet(s) Filed in Color)
+TOP LAYER
+WATER & PGMENT ON PAPER 36
+PGMENT
+DEPOSTION
+LAYER
+38
+W/7/774/7// C/A/AAA/
+34
+-1
+WATER IN PAPER (BOTTOM LAYER)
+32
+US 6,198.489 B1
+Page 2
+OTHER PUBLICATIONS Small, David, “Simulating Watercolor by Modeling Diffu
+Sion, Pigment, and Paper Fibers,” SPIE vol. 1460, Image
+Musgrave, F. Kenton., et al., “The Synthesis and Rendering
+Handling and Reproduction Systems Integration (1991), pp.
+of Eroded Fractal Terrains,” Computer Graphics, vol. 23,
+140-146.
+No. 3, Jul. 1989, pp. 41-50.
+Strassmann, Steve, “Hairy Brushes,” SIGGRAPH '86, Dal
+Pham, Binh, “Expressive Brush Strokes,” CVGIP: Graphi
+las, Aug. 18-22, vol. 20, No. 4, 1986, pp. 225-232.
+cal Models And Image Processing, Vol. 53, No. 1, Jan., pp.
+1–6, 1991. * cited by examiner
+U.S. Patent Mar. 6, 2001 Sheet 1 of 14 US 6,198,489 B1
+MASK (WHAT'S WET)
+PAPER 28
+HEIGHT
+CAPACITY
+PARAMETER
+PGMENT
+PARAMETERS
+THREE-LAYER SIMULATION
+FLUID SIMULATION PARAMETERS
+22
+-1
+20
+ONE "GLAZE"
+TOP LAYER
+WATER & PIGMENT ON PAPER 36
+PGMENT
+DEPOSITION
+LAYER
+38
+(/7////// //A/A/ % K/ (7//Z/74 Z///
+40 34
+WATER IN PAPER (BOTTOM LAYER)
+FIG. 2
+U.S. Patent Mar. 6, 2001 Sheet 2 of 14 US 6,198,489 B1
+SYMBOL DEFINITION IN PROCEDURE
+k VISCO US DRAG DUE TO BOUNDARY LAYER Move Fluid
+All WISCOSTY OF FLUID Move Fluid
+relax SPEED OF RELAXATION PROCESS Reduce Divergence
+maXdiv REDCE DIVERGENCE TO THIS THRESHOLD Reduce Divergence
+maxsteps MAX RELAXATION STEPS TO ATTEMPT Reduce Divergence
+npigs NUMBER OF PIGMENTS Move Pigment
+deposit?p RATE OF PIGMENT ABSORPTION Adsorb Pigment
+lift.pl RATE OF PIGMENT DESORPTION Adsorb Pigment
+exposurelp EFFECT OF PAPER HEIGHT ON ADSORPTION Adsorb Pigment
+edge Ker BLUR KERNEL FOR EDGE Darken Edges
+darkening MULTIPLER FOR EDGE DARKENING Darken Edges
+S VALUE BELOW WHICH A PIXEL WILL NOT RECEIVE Diffuse Water
+DFFUSON IN BOTTOM LAYER
+absorption AMOUNT OF WATER ABSORBED INTO BOTTOM Diffuse Water
+LAYER PER TIME STEP
+THRESHOLD FOR WETTING FROM BOTTOM LAYER Diffuse Water
+MIN SATURATION A PXEL MUST HAVE BEFORE Diffuse Water
+IT CAN DFFUSE TO TS NEIGHBORS
+FIG. 3
+5A COBALT BLUE 0.01 0.06 0.19
+FRENCH ULTRAMARINE 0.005 0.005 0.05
+INDGO
+SAP GREEN
+PHTHALO GREEN
+CE RULEAN BLUE
+CADMUM YELLOW
+HANSA YELLOW
+COBALT YELLOW
+QUINACR DONE ROSE
+CADMUM RED
+NDIAN RED
+FIG. 5
+U.S. Patent Mar. 6, 2001 Sheet 3 of 14 US 6,198,489 B1
+T.EGEIvºid
+U.S. Patent Mar. 6, 2001 Sheet 4 of 14 US 6,198,489 B1
+START
+52
+MOVE FLUID
+54
+REDUCE
+DIVERGENCE
+56
+MOVE
+PGMENT
+58
+ADSORB
+PGMENT
+NO 60
+DARKEN
+EDGES
+62
+DIFFUSE
+WATER
+64
+TME STEPS
+YES STOP
+EXPRED?
+50
+FIG. 6
+U.S. Patent Mar. 6, 2001 Sheet S of 14 US 6,198,489 B1
+SUBTRACT PAPER
+SLOPE FROM
+WELOCITES
+REDUCE STEP
+ANY VELOCITESO
+SZE
+SET TIME TO O
+GET FIRST CELL
+UPDATE VELOCITY
+N CELL USING
+EULER
+INTEGRATION
+ARE
+THERE MORE
+GET NEXT CELL
+NO CELLS
+NO
+84
+ADD STEP TO
+TIME
+YES STOP
+FIG. 7
+t
+52
+U.S. Patent Mar. 6, 2001 Sheet 6 of 14 US 6,198,489 B1
+SET COUNT TO 90
+ZERO
+92
+DETERMINE
+DWERGENCE
+S
+94
+DWERGENC
+<= MAX YES
+DWERGENCE
+STOP
+96
+IS
+COUNT
+YES
+>= MAX COUNT
+GET FIRST
+CELL
+DSPERSE FLUID
+PRESSURE
+LOCALY AROUND
+CURRENT CELL
+GET NEXT
+CELL
+THERE MORE CELLS
+NO
+106
+NCREMENT FIG. 8
+COUNT
+54
+U.S. Patent Mar. 6, 2001 Sheet 7 of 14 US 6,198,489 B1
+SET NSTEPS TO 110
+START 1/(TIME STEP)
+GET FIRST 112
+PGMENT
+SET STEP TO 114
+ZERO
+116
+GET FIRST CELL
+DIS PERSE PIGMENT hull 8
+LOCALLY AROUND
+CURRENT CELL
+120 122
+ARE
+HERE MORE ves- GENEXT
+CELLS
+YES
+INCREMENT
+NO
+128 130
+ARE
+HERE MORE GET NEXT
+PGMENTS YES PGMENT
+-1 NO
+56 FIG. 9
+U.S. Patent Mar. 6, 2001 Sheet 8 of 14 US 6,198,489 B1
+START
+GET FIRST \- 32
+PGMENT
+GET FIRST N134
+CELL
+136
+DESORB
+PGMENT IN
+CURRENT CELL
+AD SORB 138
+PGMENT IN
+CURRENT CELL
+140 42
+GET NEXT
+YES CEL
+146
+GET NEXT
+YES PGMENT
+FIG. I. 0
+U.S. Patent Mar. 6, 2001 Sheet 9 of 14 US 6,198,489 B1
+GET FIRST
+CELL
+REDUCE PRESSURE IN
+IS
+CURRENT CELL IN
+MASK AT
+PROPORTION TO
+THIS CELL
+GAUSSIAN BLUR OF
+POSITONO
+MASK AT THIS CELL
+POSITION
+ARE
+GET NEXT
+T H ERE MORE
+CELLS) CELL
+NO y
+FIG. II 60
+U.S. Patent Mar. 6, 2001 Sheet 10 of 14 US 6,198,489 B1
+GET FIRST
+CELL
+IS
+164N1 INCREASE WATER
+MASK AT
+QUANTITY IN
+THIS CELL
+CURRENT CELL AS
+POSITIONO
+CAPACITY ALLOWS
+ARE
+GET NEXT
+T H ERE MORE
+CELL
+CELLS
+NO
+DIFFUSE WATER N'
+N CELLS
+ADD CELLS WITH 172
+SUFFICIENT OUANTITY
+OF WATER TO
+WET-AREA MASK
+FIG. 12
+62
+U.S. Patent Mar. 6, 2001 Sheet 11 of 14 US 6,198,489 B1
+TO & FROM 240
+LOCAL/WDE AREA N
+NETWORK
+HARD DRIVE &
+DISPLAY SERIAL/MOUSE CD-ROM
+FLOPPY DRIVE
+INTERFACE INTERFACE PORT INTERFACE
+237
+DATA BUS
+er
+233
+MEMORY CPU KEYBOARD NETWORK
+(ROM & RAM) INTERFACE INTERFACE
+253
+231?' TO & FROM
+LAN/WAN
+FIG. I.4
+U.S. Patent Mar. 6, 2001 Sheet 12 of 14 US 6,198,489 B1
+Plate 1 Piate 2
+Plate 3
+U.S. Patent Mar. 6, 2001 Sheet 13 of 14 US 6,198,489 B1
+Pte
+U.S. Patent Mar. 6, 2001 Sheet 14 of 14 US 6,198,489 B1
+Piate 8 Pete 9
+US 6, 198489 B1
+1 2
+COMPUTER GENERATED WATERCOLOR SUMMARY OF THE INVENTION
+In accord with the present invention, a method is defined
+RELATED APPLICATION
+for producing a watercolor Simulationi that represents at
+This application is a continuation-in-part of prior copend least one wash applied to paper, each wash including at least
+ing provisional Application Ser. No. 60/039,020, filed Feb. one pigment dispersed in a fluid. The method includes the
+21, 1997, priority in the filing date of which is hereby Step of providing a fluid model that includes a plurality of
+claimed under 35 United States Code Section 119(e). layerS for each wash included in the watercolor Simulation.
+AS a function of a plurality of predefined parameters and in
+FIELD OF THE INVENTION
+accord with the fluid model, the manner in which each wash
+The present invention generally relates to the use of a flows over the paper is specified to determine quantities of
+computer to produce an image that appears to be produced each pigment deposited at a plurality of discrete Spatial
+by hand, and more specifically, to the use of a computer to locations on the paper. An optical composite model is
+generate a watercolor image or to modify an existing image applied to render the watercolor Simulation as a function of
+that is not a watercolor So that it appears to be a watercolor. optical characteristics of each pigment and as a function of
+15 the quantities of each pigment deposited at the plurality of
+BACKGROUND OF THE INVENTION
+discrete Spatial locations on the paper.
+Watercolor is unlike any other artistic medium. It has a The plurality of parameter-S preferably include physical
+translucent, luminous quality. It can be applied in delicate properties of each pigment employed in producing the
+layers to achieve Subtle variations in color, and it can be used watercolor Simulation, physical properties of the paper used
+to create a wide variety of beautiful textures and patterns. for the watercolor Simulation, and/or predetermined values
+Since it is possible to characterize the most important used in defining the fluid model. Furthernore, the quantities
+effects of watercolor, it is clearly desirable to Simulate these of each pigment deposited at the plurality of discrete Spatial
+characteristics automatically, with a computer. It is apparent locations are preferably Stored in an array. A data structure
+that computer generated watercolor can be used as part of an that includes the arrays for the pigments used in a wash
+interactive watercolor paint System, or alternatively, as a 25 comprises a glaze.
+method for automatic image “watercolorization.” A Kubelka-Munk model is preferably employed as the
+A watercolor Simulator should be largely empirically optical composite model for rendering the watercolor Simu
+based; it may incorporate Some physically-based models, lation. The plurality of layers in the fluid model include a
+but need not be a strict physical Simulation. Instead, the shallow fluid layer (or in a preferred embodiment, a shallow
+Simulator should enable the user to re-create, Synthetically, water layer) in which the wash flows above a surface of the
+the salient features of watercolor in a way that is both paper, a pigment deposition layer where a pigment is
+predictable and controllable. Absolute physical realism is adsorbed and desorbed by the paper; and a capillary layer
+only a Secondary goal. within the paper in which the wash is diffused by a capillary
+There exists a long line of important work on Simulating action. The Step of Specifying how each wash flows over the
+35
+artists traditional media and tools. However, the prior art paper includes the Step of determining a movement of the
+does not address certain areas. Relative to the prior art on wash in the shallow fluid layer, as a function of a velocity of
+this topic, a more Sophisticated paper model, a more com the wash as it moves over the paper. In addition, this feature
+plex Shallow water Simulation, and a more realistic render of the invention preferably includes the Step of reducing a
+ing and optical compositing of pigmented layerS is needed. divergence of a velocity field for each wash by redistributing
+40
+Further, a novel approach is required that will provide many the wash, So that the divergence in a Specific time interval is
+additional watercolor effects Such as edge darkening, hard less than a predetermined value.
+edges, backruns, and Separation of pigments. These effects In Specifying how each wash flows over the paper, the
+are necessary to produce a look that is much closer to real method provides for reducing the quantity of pigment at the
+watercolors, and to capture more of the feeling of transpar discrete Spatial locations as a function of the Velocity of the
+45
+ency and luminosity that is characteristic of the medium. An wash away from the discrete Spatial locations. A rate of
+optical compositing method is particularly important for absorption and desorption for the pigment in each wash is
+getting the appropriate look for transparency of multiple determined as a function of the predefined parameters and is
+layers. used to determine the quantities of each pigment deposited
+In the commercial realm, certain watercolor effects are 50 at the discrete Spatial locations.
+provided by prior art products Such as Fractal Design Painter An edge darkening effect is determined as a function of
+and by a plug-in for Adobe Photoshop. Yet, these products the predefined parameters, by increasing the quantities of
+do not appear to give as realistic watercolor results as would each pigment at discrete Spatial locations corresponding to
+be desired. Others working on this topic have explored the edges of areas in the watercolor Simulation covered by a
+effects of Sumie painting, and that work has been applied to wash. Also, the method may include determining a diffusion
+55
+calligraphy. A related prior art model of ink diffusion of a wash through the capillary layer, thereby increasing a
+through paper resembles, to Some extent, the water Simula wet-area in the watercolor Simulation, to Simulate a backrun
+tion techniques useful in producing the characteristic pig effect.
+ment flow of watercolor. A user interface is provided that enables a user to Selec
+Other research work on modeling thick, Shiny paint and 60 tively adjust parameters in at least a Subset of the predefined
+the effects of bristle brushes on painting and calligraphy is parameters. The user interface further enables the user to
+also relevant to this problem, by providing a plausible Select pigments that will be used in the watercolor Simula
+simulation of traditional artists tools. It may be desirable to tion and the user can specify a color of a pigment based upon
+include a brushstroke model in the Simulation process to how the pigment appears when applied over a specific
+enable the creation of the bristle patterns in a dry brush 65 background color. In implementing this option, the user
+effect. The brushstroke model would thus serve as a comple Specifies the color components of the pigment as a function
+ment to paper texture effects in the dry brush model. of its appearance as applied over both a black background
+US 6, 198489 B1
+3 4
+and a white background; the color components arc then used FIG. 14 is a block diagram illustrating some of the
+to determine a set of absorption coefficients and Scattering functional components included within the processor chassis
+coefficients for each pigment. of the personal computer illustrated in FIG. 13;
+When creating a watercolor Simulation interactively, the PLATES 1A and 1B are color images created by the
+user Selects at least a Subset of the predefined parameters that present invention, respectively demonstrating the effects of
+will be applied to each layer, and provides a wet-area mask
+compositing a thick layer of Cerulean Blue over Quinacri
+for at least one layer.
+done Rose, and a thick layer of Quinacridone Rose over
+Alternatively, the watercolor Simulation may be based on
+Cerulean Blue;
+a color image that is not a watercolor. In this case, the
+PLATES 2A, 2B, and 2C are scanned color images of
+method further includes the Step providing a color image for
+actual watercolors, respectively illustrating wet-on-dry, dry
+conversion to the watercolor Simulation. Mattes are
+brush, and wet-on-wet brushing techniques commonly used
+extracted for Specific portions of the color image. An ordered
+in watercolor images,
+Set of pigments to be applied to the mattes, and color
+Separations for the ordered Set of pigments are determined. PLATES 2D, 2E, and 2F are scanned color images of
+Automatic brushstroking is applied when rendering the color actual watercolors, respectively illustrating dark, branching
+Separations. It is also contemplated that the color image may 15 reticulations around a light area, which are created as a
+puddle of water in a damp region of watercolor paint dries,
+comprise a three-dimensional geometric model.
+the Settling out of pigments, and the Separation of pigments
+A further aspect of the present invention is directed at a
+resulting in a splitting of colors in actual watercolors,
+System that includes a memory for Storing a plurality of
+machine language instructions and a device for rendering the PLATES 3A-3F are color images rendered by the present
+watercolor Simulation. A processor is coupled to the device invention demonstrating the effects of different parameters
+in the program;
+and to the memory and executes the machine instructions to
+implement a plurality of functions that are generally con PLATES 4A-4F are color images rendered by the present
+sistent with the steps of the above method. invention showing the effects of compositing different pig
+ments over each other;
+BRIEF DESCRIPTION OF THE DRAWING 25
+PLATES 5A-5L are color images rendered by the present
+FIGURES
+invention showing a palette of colors, with each pigment
+The file of this patent contains at least one drawing appearing as a layer of graded thickness over both a white
+executed in color. Copies of this patent with color background and a black background;
+drawing(s) will be provided by the Patent and Trademark
+PLATES 6A-6E are color images illustrating examples of
+Office upon request and payment of the necessary fee.
+Synthetic paper textures produced by the present invention;
+The foregoing aspects and many of the attendant advan
+PLATES 7A-7L are color images of an apple and a pear
+tages of this invention will become more readily appreciated
+generated by the present invention, showing a plurality of
+as the Same becomes better understood by reference to the
+different color Separations,
+following detailed description, when taken in conjunction
+35 PLATES 8A-8C are color images generated by the
+with the accompanying drawings, wherein:
+present invention, illustrating the layering of colors, the
+FIG. 1 is a Schematic diagram showing the process used
+hand-drawn appearance of the resulting image, and the
+to create one glaze, where Several glazes are combined to
+automatic brush Stroking effect; and
+create the final rendered image;
+PLATES 9A-9F are scanned color images showing dif
+FIG. 2 is a side cross-sectional view of a three-layer
+40 ferent colored areas of an apple and a pear.
+model for a single glaze applied to paper;
+FIG. 3 is a table Summarizing parameters used in the DESCRIPTION OF THE PREFERRED
+procedure of the present invention; EMBODIMENT
+FIG. 4 is a table listing the parameters used for the images Properties of Watercolor
+shown in Plates 1 and 3; 45 For centuries, ground pigments have been combined with
+FIG. 5 is a table listing the optical parameters for pig water Soluble binding materials and used in painting. The
+ments used in Plates 5A-5L, earliest uses of watercolor were as thin colored washes
+painstakingly applied to detailed pen-and-ink or pencil illus
+FIG. 6 is a flow chart showing the main loop logic used
+for generating a watercolor image in accord with the present trations. The modern tradition of watercolor, however, dates
+invention; 50 back to the latter half of the eighteenth century, when artists
+began to experiment with new techniques Such as wiping
+FIG. 7 is a flow chart illustrating the logical steps for
+and Scratching out, and with the immediacy and Spontaneity
+moving fluid that is used when generating the watercolor
+image, of the medium. In order to simulate watercolors effectively,
+it is important to Study not only the physical properties of the
+FIG. 8 is a flow chart illustrating the logical steps used to
+reduce divergence in the present invention; 55 medium, but also the characteristic phenomena that make
+watercolor So popular to artists. A simulation of this medium
+FIG. 9 is a flow chart illustrating the logical steps
+will only be Successful if it can achieve many of the same
+employed when moving pigment in the present invention;
+effects. The following discussion addresses this problem.
+FIG. 10 is a flow chart showing the steps used for To properly simulate watercolor images, it is first neces
+Simulating adsorbing pigment in the present invention;
+Sary to understand the components used in creating Such
+60
+FIG. 11 is a flow chart showing the steps used for images. A watercolor is created in the conventional manner
+darkening edges in the present invention; by applying a Suspension of pigment particles in a Solution
+FIG. 12 is a flow chart illustrating the steps employed for of water, binder, and Sulfactant to paper. A pigment is a Solid
+creating the background effect in the present invention; material in the form of Small, Separate particles. Watercolor
+FIG. 13 is an isometric diagram illustrating a generally pigments are typically ground in a milling process into a
+65
+conventional personal computer Suitable for use in imple powder made of grains ranging from about 0.05 to 0.5
+menting the present invention; microns. Pigments can penetrate into the paper, and arc
+US 6, 198489 B1
+S 6
+helped in this regard by the Surfactant. However, once in the evaporation at the edges of the painted region due to a
+paper they tend not to migrate far from the point of appli relatively greater Surface area, which in turn pulls more
+cation. Pigments vary in density, and lighter pigments tend water and pigment to the edges. Whatever its causes,
+to Stay Suspended in water longer than heavier ones, and thus the edge darkening is an important effect that water
+can spread farther acroSS paper. Staining power, an estimate color artists rely upon and that paint manufacturers take
+of the pigment's ability to adhere to or coat paper fibers, also pains to ensure in their watercolor paint formulations.
+Varies between pigments. Certain pigments exhibit Granulation is another important wet-on-dry effect for
+certain pigments.
+granulation, in which particles Settled into the hollows of
+rough paper. Others exhibit flocculation, in which particles Dry brush: Abrush that is almost out of paint can be used
+are drawn together into clumps, usually by electrical effects. to create Strokes with a rough, ragged texture, with the
+Flocculation is similar in appearance to granulation, and can paint adhering only to the raised areas of the rough
+occur on Smooth as well as rough paper. paper. In this case, white pinpoints of dry paper con
+The binder is used in watercolors to help bind the pigment tinue to show through. Plate 2B illustrates this tech
+to the paper (which is also known as "adsorption of the nique.
+pigment by the paper'). The binder also plays a role in Wet-on-wet: A wet brush is applied to wet paper. The wet
+15
+binding the pigment to itself particularly when thick layers Surface allows the brushstrokes to Spread, exhibiting
+of paint are applied. Without a binder, most of the pigment Soft, feathery flow patterns. Some pigments will also
+particles would blow away once the paper dries. However, tend to granulate where the paper is particularly wet, as
+for thin layers of paint, the mechanical ability of paper fibers illustrated in Plate 2C.
+to hold pigment particles is at least as Significant as the effect In addition, there are a number of Standard effects that can
+of the binder, as anyone who has tried to Scrub away be reliably employed by the watercolor expert. These
+watercolor paint knows. The most common binder is gum include:
+arabic, which is derived from the Stems of certain acacia Intentional backruns: Dark, branching reticulations
+treeS. around a light area are created as a puddle of water in
+Surfactants, or wetting agents, are added to lower the a damp region of paint dries. This effect is illustrated in
+25
+Surface tension between two materials-in this case, Plate 2D.
+between the pigment and the binder, as well as between the Settling out and Separation of pigments: Settling out of
+water and the paper. The Surfactant improves the uniform pigments yields a kind of grainy texture. Separation
+flow of water over the Surface of the paper and also helps the exhibits a splitting of colors, with the lighter-weight
+water to penetrate into the paper. In this latter Sense, the pigments generally traveling farther from the initial
+Surfactant counteracts the effect of Sizing in the paper, which brush position. These two effects are illustrated respec
+is described below. The Surfactant also increases the rate of tively in Plates 2E and 2F.
+evaporation of the water, which in turn reduces granulation Plates 2A-2F are Scanned-in images of real watercolors.
+and flocculation effects of pigments. OXgall is a commonly Plates 1A-1B and 3A-3F illustrate similar effects obtained
+used wetting agent for watercolor. 35 with watercolor Simulations created using the present inven
+Watercolor images are created by the application of water tion.
+and paint to paper. Watercolor paper is typically not made One other very important technique in watercolor is the
+from Wood pulp, but instead from linen or cotton rags process of color glazing. Glazing is the process of adding
+pounded into Small fibers. The paper itself is mostly air, very thin, pale layers, or washes, of watercolor, one over
+laced with a microscopic web of these tangled fibers. Such 40 another, in order to achieve a very clear and even effect.
+a Substance is obviously extremely absorbent to liquids, and Each layer of watercolor is added after the previous layer has
+So the paper is impregnated with sizing So that liquid paints dried. More expensive watercolor paints are specially for
+may be used on it without immediately Soaking in and mulated to have a low resolubility, which not only allows
+diffusing. Sizing is usually made of cellulose. It forms a thin uniform washes to be overlaid, but in fact allows any
+barrier that slows the rate of water absorption and diffusion. type of brushing technique to be employed over a dried wash
+45
+For watercolor papers, sizing is typically applied sparingly (including dry brush and wet-on-wet) without disturbing the
+and just coats the fibers and fills Some of the pores, leaving underlying layers.
+the paper Surface Still rough. Glazing is different from ordinary painting in that the
+The final appearance of watercolor derives from the different pigments are not mixed physically, but optically
+interaction between the movements of various pigments in a in their Superposition on the paper. Glazes yield a pleasing
+50
+flowing medium, the adsorption of these pigments by the effect that is often described as “luminous,” or as “glowing
+paper, the absorption of water into the paper, and the from within.” It is believed that this subjective impression
+eventual evaporation of the water medium. Obviously, these arises from the wet-on-dry effect in which a watercolor
+interactions are quite complex in nature and can be used by brushstroke becomes Slightly lighter on its interior and
+a skilled artist to achieve a wide variety of effects, as 55 markedly darker at its boundary. This effect is intensified
+described in the next Section. with multiple wet-on-dry washes. These subtle variations in
+Watercolor Effects tone are probably responsible for this "luminous” appear
+Watercolor can be used in many different ways, but there
+CC.
+are three basic brushing techniques, including: Computer Generated Watercolor Model
+Wet-on-dry: A wet brush is applied to dry paper. An Implementing all of these artistically important effects
+60
+example of this technique is shown in Plate 2A. The automatically presents an interesting challenge, particularly
+sizing in the paper, coupled with the Surface tension of given the paucity of available information on the physical
+water, does not allow the brushstroke to spread. processes involved. A model must be developed to artifi
+Instead, in a gradual process, the interior of the painted cially simulate the physical and optical behavior of water
+region lightens slightly, and the edges of the painted 65 colors. The details of this model are described below. In the
+region darken Significantly as the paint begins to dry. It description of the present invention and in the claims that
+is Suspected that this phenomenon is caused by faster follow, the watercolor Simulation is discussed in terms that
+US 6, 198489 B1
+7 8
+at times may seem to be directed to an actual watercolor is used to compute fluid flow above the paper. The pigment
+rather than a Simulation. The watercolor Simulation is deposition layer represents pigment attached to the paper.
+defined based upon certain real parameters that would affect Shallow water layer 36 interacts only with the shallow water
+the appearance of a real watercolor, but it should be under layer above it, and not with the capillary layer below. The
+stood that these parameters are virtual parameters. Thus, for capillary layer uses another height-field representation of
+example, when the following discussion refers to the "tex water flowing within the paper. This layer is used to expand
+ture of the paper' on which the watercolor Simulation is or shrink the wet-area masks, which creates backrun effects.
+being rendered, it should be apparent that this reference In the following derivations and pseudo code, letters in
+Simply applies to the modeling of the Surface on the water italics (Such as u and V) are used to represent Scalar
+color Simulation is rendered-not to an actual paper. quantities, and bold italics (Such as u and V) are to represent
+Similarly, references to a “wet-area” refer to an area that is arrays of these quantities, discretized over a discrete Set of
+modeled as wetted by water-and not to an actual wetted cells in the Simulation.
+region. These and many other terms used below that seem to Main Logic Loop of the Computer Model
+relate to aspects of an actual watercolor thus simply refer to The main loop of the Simulation takes as input the initial
+those aspects in the model used to produce the watercolor quantities of water in the shallow water and capillary layers,
+Simulation. 15 denoted p and q, respectively; and the initial amount of each
+The approach employed in building a watercolor model pigment i in the shallow water and pigment deposition
+has been to Start with physically-based equations, Such as the layers, denoted gsi and gcdi, respectively. It also uses two
+shallow water equations, and then to add terms as necessary Scalar parameters u and k, which control the Viscosity of the
+to create the desired effects. Thus, while the model is fluid, and friction of the fluid against the paper.
+motivated by the physical phenomena, it is not a strict The main loop iterates over a specified number of time
+physical Simulation. It does, however, do a reasonably good Steps, performing various aspects of the fluid Simulation and
+job of Synthesizing the most Salient watercolor effects. outputting a frame at the end of each step. (These frames can
+A complete painting is preferably represented in the be concatenated into an animated Sequence for inclusion into
+model as an ordered Set of translucent layers, or washes, Video. AS is typical of an animation, one or more objects
+applied over a sheet of rough paper. Each wash may contain depicted in the Simulations may change position over a
+25
+various pigments in varying quantities over different parts of Series of Such frames, So that when the frames are Succes
+the image. Information about these pigments is Stored in a Sively displayed Sufficiently fast, the object appears to
+data Structure called a "glaze.” In the present invention, a move.) Alternately, just the final frame can be used to
+glaze is a Set of floating-point image arrays with one array,
+display just a finished watercolor painting. A flow chart 50
+or channel, for each pigment in the wash. The floating-point illustrating the logic implemented in the main loop is
+numbers in a given channel represent the quantity of the
+provided in FIG. 6, and the following pseudo code includes
+corresponding pigment present at each pixel in the water
+references to blocks in this Figure. The code proceeds as
+color image.
+follows:
+Each glaze is created independently by running a fluid
+proc MainLoop(u,vgs.gd):
+Simulation that computes the flow of paints over the paper.
+FIG. 1 presents an overview 20 of the functional compo 35 foreach time Step do
+nents employed in this process for producing a three-layer /* Move water and pigments in Shallow water layer,
+fluid Simulation 22. The Simulation takes as input pigment as indicated in a block 52 */
+parameters 24 that control the physical properties of pig MoveFluid(u, V.p, u, k, paperslope)
+ments (size, rate of adsorption, etc.), physical properties 26 /* Redistribute fluid into neighboring cells to reduce
+of the paper (Surface height, water capacity, etc.), and divergence, as noted in a block 54 */
+40
+Simulation parameters 30 (size of time step, etc.). In ReduceDivergetice(u, V, p, relax, maxdiv, maxsteps)
+addition, the Simulation makes use of wet-area maskS 28, /* Reduce pigment in each cell based on rate of fluid
+which represent the damp areas of paper. These masks movement out of cell, as noted in a block 56 */
+control where water is allowed to flow, and therefore the MovePigment(gS1. . . npigs, u, V, At)
+limits of the fluid flow computation. The masks may expand /* Adsorb pigment into paper, in accord with a block
+45
+during Simulation if water diffusing through the bottom layer
+58 */
+would have caused the paper to become damp. The next AdsorbPigment(gS1. . . npigs, gd1. . . npigs, b,
+Section describes this fluid simulation in detail. Once the deposit1... npigs), lift1. . . npigs), exposure 1.
+glazes are computed, they are optically composited using a . . npigs)
+Kubelka-Munk (KM) color model to provide the final visual /* AS water evaporates, darken edges Slowly, as
+50
+effect, as described below. provided in a block 60 */
+The Fluid Simulation DarkenEdgeS(p, mask, edge Ker, darkening)
+In this simulation, each individual wash is simulated /* Move water in capillary layer, to simulate
+using a three-layer model 32, as illustrated in FIG. 2. From diffusion, as noted in a block 62. For backrun
+top to bottom, as shown in this view, these three layers effects only. */
+55
+include: DiffuseWater(q, mask, absorption, e, 6, O)
+a shallow water layer 36 where water and pigment flow /* Use the KM model to render the simulation by
+above the Surface of a paper 34; compositing the layers, as provided in a block 64
+a pigment deposition layer 38-where pigment is depos */
+ited onto ("adsorbed by’) and lifted (“desorbed”) from Render(gs1. . . npigs), gd1. . . npigs)
+60
+the paper. /* AS indicated in a decision block 66, continue
+a capillary layer 40 where water that is absorbed into the looping within the FOR loop to block 52 until the
+paper is diffused by capillary action. time Steps have expired */
+The shallow water layer is represented by a Spatially Endfor
+discretized height field, together with a set of arrays repre 65 /* After all of the time steps have expired, stop the
+Senting the quantities of different pigments at each spatial process */
+location. A modified version of the shallow water equations endproc
+US 6, 198489 B1
+9 10
+Moving Water in the Shallow Water Layer
+Details of block 52 are illustrated in FIG. 7. However,
+before discussing the logical Steps employed in moving
+/* Determine if there are any more cells, as noted
+water in the shallow water layer, certain parameters that are in a decision block 80, and if so, get the next
+used in the Simulation should be defined and explained. Let cell, as provided in a block 82. Once all cells
+p be the fluid preSSure in a cell, which is proportional to the have been processed, add a step to time, as
+quantity of fluid in the cell (denoted by p in the pseudo provided in a block 84 */
+code). Also let u and v denote the fluid velocities in the X and endfor
+y directions. The following modified shallow water equa /* Determine if current time is greater than or equal
+tions are used in the Simulation: to one, in a decision block 86, and if So, Stop;
+otherwise, loop back block 76 in an outer FOR
+loop, to repeat the step in block 78 for each cell /*
+8tt du duy 2. Öp -0. (1)
+S-(+1)-au-2-(e P)u endfor
+u=ti
+8tt ov’ buy Öp (2) 15 v=V
+-t (-i-. -H- -G-u a2 - Öy1 - 1( k- de 0.1P )w endproc
+Reducing Divergence
+These equations are Spatially discretized on a Staggered The present invention provides for reducing the diver
+grid. The Staggered grid representation Stores Velocity Val gence of the velocity field (du/ov--óv/ay) after each time step
+ues at grid cell boundaries and other values (pressure, until it is less than maxdiv by redistributing the fluid into
+pigment, etc.) at grid cell centers. The Standard notation for neighboring grid cells. This step does not have as clear a
+Staggered grids is used: integer indices (like the 'i' and “j” physical basis in the two-dimensional (2D) shallow water
+in p, ) are grid cell centers, and indices incremented or Simulation as it has in a related prior art three-dimensional
+decreinented by % (like “i-%” in us) j) are used for grid (3D) simulation. However, the Step appears to make a
+cell boundaries. The equations are discretized in time and Significant difference for reducing ringing artifacts in the
+solved forward using Euler's Method, with an adaptive step 25
+simulation, and has thus been found to be useful. In this
+size. The Step size is reduced if Velocities exceed one pixel
+approach, relax, maXdiv and maxsteps are parameters that
+per time Step.
+control aspects of the simulation (see the table in FIG.3 for
+A gravity term is added to account for the local Slope the Symbols/values used in a current preferred embodiment,
+paperSlope of the Surface of the paper. This term is added to
+their definitions, and an indication of the procedure in which
+the velocities before the fluid step is computed.
+these Symbols/values are used). The steps implemented in
+The final pseudo code (with reference to the correspond reducing divergence are shown in FIG. 8 and the blocks
+ing blocks in FIG. 7) for integrating the fluid simulation describing these steps and corresponding pseudo code are as
+forward one time unit is as follows:
+follows:
+proc Move Fluid(u, V, p., k, u, At, paperslope) proc ReduceDivergence(u, V, p, relax, maxdiv, maxsteps)
+35
+/* Subtract paper slope from Velocities u and V, as noted local dip, div, count, maxdp;
+in a block 68 */ /* A block 90 sets a count to zero to initialize the
+u-=paperslope process. The divergence is determined, as noted in a
+V-=paperslope, block 92, and a decision block 94 provides for
+/* Determine if either Velocity is greater than Zero, as determining whether the divergence is less than or
+40
+provided in a decision block 70 */ equal to the maximum divergence, maxdiv, and if So,
+if (max(u)x1 or max(v)>1) the procedure stops. If not, a decision block 96
+/* If So, then reduce the Step size, in accord with a determines if the count is greater than a maximum
+block 72 */ count, maxSteps, and if So, the procedure Stops */
+then reduce Stepsize At 45 while ((div>maxdiv) and (count-1 maxsteps)) do
+/* Otherwise, set time to zero, as noted in a block 74, /* If the response to both decision blocks 94 and 96 is
+get the first cell, as noted in a block 76, and begin negative, a block 98 provides for getting a first cell,
+a loop */ as the initial Step in an inner loop */
+for t from 0 to 1 by At do forall cells (i,j) do
+forall cells (i,j) do /* Fluid pressure is dispersed locally around
+50
+/* Update the velocity in current cell using Euler current cell, as noted in a block 100 */
+integration, as indicated in a block 78 */ dp=-relax"(u,4-up...tvia-V-4-)
+p+=dp/* Note: p modified in place */
+dat=dp
+55
+maxdp=max(dp, maxdp)
+/* A decision block 102 determines if there are
+60 any more cells to be processed, and if So, a
+block 104 provided for getting the next cell for
+input to the process in block 100 */
+endfor
+/* If there are not any more cells to be processed in
++4(iii-sitti-41)(V-1 4+vi. 4) 65 decision block 102, a block 106 provides for
+incrementing the count, and then the process loops
+-'1.4 (iii. 4+ui, 4.1)(vi. 4+V-1-4) back to block 92 */
+US 6, 198489 B1
+11 12
+count-=1 rate of adsorption and desorption. These parameters deter
+endwhile mine how quickly pigment is deposited onto the paper. The
+u=(i. exposurep parameter determines how much the paper
+v=V height b affects lift and deposit rates, and its value can be
+return maxdiv Selected So as to imitate pigments that are heavier and tend
+endproc
+to sediment out into the valleys of the paper. FIG. 10 shows
+Moving Pigments in the Shallow Water Layer the logical StepS implemented in this adsorption/desorption
+Pigments move within the top layer as specified by the process, and these Steps are reflected in the following pseudo
+velocity field u, vcomputed for the water set forth above. In code, which defines the AdsorbPigments procedure:
+this part of the Simulation, the relative quantity of pigment proc AdsorbPigment(gS1. . . npigs, gd1. . . npigs, b,
+in each cell is reduced according to the rate of fluid move deposit1. . . npigs), lift1... npigs),
+ment out of the cell. This pigment is then distributed to the exposure 1. . . npigs)
+neighboring cells appropriately, as defined by the Steps
+/* A block 132 in the Figure provides for getting the first
+indicated in the blocks of FIG. 9 and by the following
+pigment, while a block 134 provides for getting the first
+pseudo code, which corresponds to the blocks as indicated:
+15 cell / local Ddown, Dup
+proc MovePigment(gS1. . . upigs, u, V, At)
+forall penpigs do
+/* A block 110 provides for setting the variable
+forall cells(i,j) do
+NSTEPS to the reciprocal of the time step */
+/* AS provided in a block 136, the pigment in the
+nStepS=1/At
+current cell is desorbed, while a block 138 notes
+/* A block 112 provides for getting the first pigment
+that the pigment in the current cell is absorbed */
+included in the pigments used, a block 114 Sets the
+Ddown=gdpliftp (1+exposure p(b-1))
+Step to Zero, and a block 116 provides for getting the
+Dup=gsp depositp (1-exposurepb)
+first cell / if ((gdp+Ddown)>1)
+forall penpigs do
+then Ddowin=max(1-gsp, 0)
+for nSteps do
+25 if ((gsp+Dup)>1)
+gS=gS
+then Dup=max(1-gdp, 0)
+forall cells (i,j) do
+gdp+=Ddown-Dup
+/* A block 118 provides for dispersing the
+gSp+=Dup-Ddown
+current pigment locally around the current cell;
+/* A decision block 140 determines if there are any
+a decision block 120 then determines if there
+more cells, and if so, a block 142 provides for
+are any more cells, and if So, a block 122
+getting the next cell prior to repeating the desorp
+provides for getting the next cell, So that the
+tion and adsorption process of block 136 and 138.
+dispersion process implemented in block 118
+If there are no more cells, the logic advances to a
+can be repeated for the next cell. If not, a block
+decision block 144 */
+124 indicates that the step variable is incre
+35 endfor
+mented before proceeding with a decision
+/* Decision block 144 determines if there are any more
+block 126 */
+pigments, and if So, advances to a block 146, which
+gSplit-=max(u, gsplit 0)
+provides for getting the next pigment */
+gSpl -=max(-u, , gsplit 0)
+gSpl.--max(V, gspli O) endfor
+40
+gSpl. 1-=max(V, a gspli O) /* A negative response to decision block 144 terminates
+gSp-=max(ugsplit 0)+max(-u, a gspl the process */
+'me. gSpl.0)+max(v, agsplit, endproc
+Edge Darkening
+It is conjectured that edge darkening arises from increased
+/* Decision block 126 determines if the current 45
+value of the step variable is less than that of the evaporation near the edges of a Small puddle, due to the
+Variable insteps, and if So, the logic loops back relatively larger Surface area of fluid per unit area of paper
+to block 116. Otherwise, the logic proceeds to near the edge. The following routine, which corresponds to
+a decision block 128, which determines if there the logic shown in FIG. 11, simulates this effect, i.e.,
+are any more pigments to be processed, and if removing water from the edgeS. The water removal causes
+50
+So, a block 130 provides for getting the next a slight fluid flow toward the edges and in turn brings in
+pigment, before looping back to block 114 */ more pigment. The procedure and corresponding blocks are
+endfor as follows:
+proc DarkenEdges(p, mask, edge Ker, darkening)
+endfor 55 /* A block 150 provides for getting the first cell */
+endfor blur=a Gaussian blurred version of mask with kernel
+/* A negative response to decision block 128, termi edgeKer
+nates the process / p=b /* A decision block 152 determines if the mask at the
+endproc current position is>Zero, i.e., if the cell is within the
+Pigment Adsorption and DeSorption 60 mask area */
+At each Step of the Simulation, pigment is also adsorbed forall cells (i,j) do
+by the pigment deposition layer at a certain rate, and if (mask-0)
+desorbed back into the fluid at another rate. Note that any /* If the response to decision block 152 is
+initial pigment placed outside of any wet-area mask 28 is affirmative, a block 154 calls for reducing fluid
+immediately entirely adsorbed by the pigment deposition 65 preSSure in the current cell in proportion to the
+layer. The parameters depositp and liftp, which are Gaussian blur of the mask at the current cell
+included in the table of FIG. 3, are scalars representing the position */
+US 6, 198489 B1
+13 14
+then p,-=max(min(blur," darkening, p.j), 0) Scattered back, respectively, per unit distance in the layer of
+/* The logic proceeds to a decision block 156 if the pigment. In the preferred embodiment of the present
+response to decision block 152 is negative or after invention, three coefficients each are used for K and S,
+the step in block 154. Decision block 156 deter representing Red, Green, Blue (RGB) components of each
+mines if there are any more cells, and if So, a block quantity.
+158 provides for getting the next cell before Specifying the Optical Properties of Pigments
+looping back to decision block 152 */ Typically, the K and S coefficients for a given colorant
+endfor layer are determined experimentally, using spectral mea
+/* A negative response to decision block 156 results in Surements from layers of known thicknesses. However, in
+termination of the process */ the preferred embodiment of the present invention, it was
+endproc much more convenient to allow a user to Specify the K and
+Diffusing Water through the Capillary Layer S coefficients interactively, by choosing the desired appear
+The following routine is used in the present invention to ance of a “unit thickness” of the pigment over both a white
+Simulate the diffusion of water through the bottom, capillary and a black background. Given these two user-selected RGB
+layer, according to the paper's holding capacity pcap, which colors R and R, respectively, the K and S values can be
+15
+Specifies the Volume not occupied by paper fibers. This computed by a simple inversion of the KM equations, as
+routine can also expand wet-area mask 28, which creates follows:
+Synthetic "backrun effects. The routine takes as its param
+eters: e, the minimum Saturation a pixel must have before it 1 (3)
+can diffuse to its neighbors, Ö, a value below which a pixel S = - oth b(1 - R)
+will not receive diffusion; and O, the minimum Saturation
+required to expand the wet-area to include a pixel. The logic
+implemented in the routine is illustrated in FIG. 12, with
+reference to the following pseudo code: (5)
+proc DiffuseWater(mask, pcap, q, absorption, e, 6, O)
+25
+/* A block 160 provides for getting the first cell */
+(6)
+forall cells (i,j) do
+/* A decision block 162 determines if the mask at the
+current cell The above computations are applied to each color channel
+position is greater than Zero */ of S, K, R, and R, independently. In order to avoid any
+if (maski>0) then divisions by Zero, it is required that R>R, for each color
+/* An affirmative response to decision block 162 channel. (This restriction is reasonable even for opaque
+leads to a block 164, which provides for pigments, since the user is specifying reflected colors
+increasing the water quantity in the current cell through just a thin layer, which should still be at least
+as its capacity allows partially transparent.) While for most valid combinations of
+35
+/* q+=max(min(absorption, pcap, -q), 0) */ Specified colors, the computed K and S values fall in the
+endfor legal range of 0 to 1, for certain very Saturated input colors,
+/* Following a negative response to decision block the Scattering coefficient may actually exceed the value of 1
+162 and after block 164, the logic proceeds to a in Some color channels. Though Such a large value of S is
+decision block 166, to determine if there are any clearly not possible for any physical pigment, no ill effects
+40
+more cells, and if So, proceeds to a block 168, to have been noted in the Simulation from allowing Such
+get the next cell. A negative response to decision “out-of-range' values. (The situation is somewhat analogous
+to allowing an “alpha' opacity to lie outside the range 0 to
+block 166 leads to a block 170 in which the water
+is diffused into the cells. A diffusion constant of 1, another non-physical effect that is sometimes useful.)
+about 0.25 is employed in the preferred This simple method of Specifying pigments has been
+45
+embodiment, but flow is limited to the capacities found to be quite adequate for creating a wide range of
+of the neighboring cells. Also, there is no diffusion realistic paints. In addition, the method is much easier than
+between two cells unless the Sending cell has more taking the kind of extremely careful measurements that
+thane water, and the receiving cell has less than Ö. would otherwise be required. The method also appears to be
+The wet-area mask is Shrink/expand. Add cells much more intuitive for most people than Specifying the K
+50
+with water level above a to the wet-area mask, as and S values directly. Note the following examples:
+indicated in a block 172 */ Opaque paints, Such as “Indian red,” exhibit a similar
+endproc color on both white and black. Such paints exhibit high
+Paper Generation Scattering in the same wavelengths as their color, and
+Paper texture is modeled as a height field and a fluid 55 high absoliption in complementary wavelengths.
+capacity field. The height field is generated using one of a Transparent paints, Such as “Quinacridone rose, appear
+Selection of pseudo-random processes. The fluid capacity colored on white, and nearly black on black. Such
+per pixel is computed from the height field, cap=ht (cap paints have low Scattering in all wavelengths, and high
+cap,i)+cap, Some examples of Synthetic paper textures absorption in wavelengths complementary to their
+on a simulated watercolor are shown in Plates 6A-6E. 60 color.
+Rendering the Pigmented Layers Interference paints, Such as “Interference lilac,' appear
+The KM model is used to perform the optical compositing white (or transparent) on white, and colored on black.
+of glazing layers in the preferred embodiment of the present Such paints have high Scattering in the same wave
+invention. In the present use of the KM model, each pigment lengths as their color, and low absorption in all wave
+is assigned a set of absorption coefficients K and Scattering 65 lengths.
+coefficients S. These coefficients are a function of In the same way, this method also makes it easy to Specify
+wavelength, and control the fraction of energy absorbed and paints that exhibit slightly different hues over black than
+US 6, 198489 B1
+15 16
+white, such as “Hansa yellow. Plate 5H provides a visual Plate 4E was generated by alpha compositing a rose color
+ization of the Simulated color of this pigment as it is applied and a green color taken directly from Plate 4C, using alpha
+in layers of increasing thickness over both black and white mattes with Similar gradations. The individual colors are
+backgrounds. much leSS Saturated, and there is no variation in hue.
+Optical Compositing of Layers Furthermore, when they are composited together, the result
+Given Scattering and absorption coefficients S and K for is much lighter, and the rose color Seems to be more
+a pigmented layer of given thickness d at a particular pixel, translucent than transparent.
+Plates 4D and 4F show a similar comparison, this time
+the KM model enables the reflectance R and transmittance
+using Hansa Yellow over Cobalt Blue. Note here that the
+T through the layer to be determined as follows:
+image generated using the KM model (Plate 4D) is distinctly
+green in the overlapping area, a color which the alpha
+R=sin hibScfc (7)
+blending model (Plate 4F) fails to match.
+T=bic (8) Discussion of KM Model
+The KM model appears to give very plausible and intui
+where
+tive results in all cases tried in connection with. the present
+c=asin hibSD+b cos hbSD (9) 15 invention. On the one hand, these results may not at first
+appear very Surprising, considering that the KM model was
+Kubelka’s optical compositing equations can then be used to
+Specifically designed for Situations akin to watercolor in
+determine the overall reflectance R and transmittance T of which there are multiple pigmented layers that Scatter and
+two abutting layers with reflectances R, R and T, T, absorb light. It is, however, worth noting that there are a
+respectively:
+number of fine points in the basic KM assumptions that are
+Satisfied, at best, only partially in a watercolor Simulation, as
+T. R. (10) follows:
+R = R + 1 - RR2 1. The KM equations apply strictly to colorant layers
+immersed in a medium of the same refractive index. This
+T = - TT? (1111 ) 25 assumption is in fact violated at both the “air to pigment
+1 - RR2 layer” and “pigment layer to paper” boundaries (although it
+is contemplated that a fairly Simple correction term could be
+This computation is repeated for each additional glaze. The used to increase the accuracy).
+overall reflectance R is then used to render the pixel. 2. In the conventional application of the KM model, it is
+For individual layerS containing more than one pigment of assumed that S and K are constant throughout each layer.
+thicknesses d, . . . , d, the S and K coefficients of each However, this assumption is violated in the present inven
+pigment i are weighted in proportion to that pigment's tion by allowing mixtures of pigments within each layer.
+relative thickness d. The overall thickness of the layer d is 3. In the conventional application of the KM model, it is
+taken to be the Sum of the thicknesses of the individual assumed that a random orientation of particles produces
+pigments. 35 diffuse reflection in the layer. While this assumption is
+Pigment Examples Satisfied for most watercolor paints, it is not true for all. For
+Plates 5A-5L show the palette of colors used in the example, metallic paint pigments have mostly horizontal
+examples, with each pigment appearing as a layer of graded flakes.
+thickness over white and over black. The values used for 4. A diffuse illumination is conventionally assumed when
+these pigments appear in the table of FIG. 5, and were 40 applying the KM model. In regard to the present invention,
+obtained by the procedure outlined above. Many of these it is noted that simulated watercolors will not look entirely
+pigments produce colors that change in both Saturation and correct under all lighting and Viewing conditions. Use of
+hue as thickness increases. Quinacridone Rose (Plate 5J) four parameters in the model instead of two can account for
+provides a good example of this effect. Plate 4A shows the more general lighting conditions.
+range of colors of Quinacridone Rose over white, drawn as 45 5. It is also conventionally assumed that the KM model
+a curve in an RGB color cube. From a perspective looking only applies to one wavelength at a time. Fluorescent paints
+down the luminance axis, it is clear that both hue and violate this assumption in the application of the KM model
+Saturation vary along the curve. This characteristic is one of to the present invention.
+the qualities that gives these pigments their rich appearance. 6. The conventional application of the KM model assumes
+Plates 1A and 1B demonstrate the effects of compositing 50 no chemical or electrical interaction occurs between differ
+a thick layer of Cerulean Blue over Quinacridone Rose, and ent pigments, or between a pigment and a medium. It is also
+vice versa. Note that in Plate 1A, the blue stroke almost generally assumed in the conventional application of the
+completely hides the red. The thickness of the layers has model that no clumping of pigment grains occurs, and that
+been exaggerated to emphasize the difference between an the pigments have a uniform particle size. All of these
+opaque pigment and a transparent one. 55 assumptions are violated for most watercolor pigments in
+Some colors have different hue characteristics when com the present invention.
+posited over black versus over white. Plate 4B shows the In Summary, it is Surprising that the KM model appears to
+curves described by Hansa Yellow (Plate 5H) over black and work So well in the present invention, given the number of
+over white. Note that the dark curve's hue leans toward the basic assumptions of the model that are violated by its
+green side of yellow (G>R) before arcing back toward the 60 application to a simulated watercolor. Given the conven
+orange, whereas the light curve stays entirely on the orange tional understanding of its limitation, one would thus not
+side (R>G). have been led to apply the KM model to simulated water
+Plates 4C-4F show the difference between the KM model color. Although applying the KM model in the present
+and traditional alpha compositing. Plate 4C Shows a grada invention may not yield results that are physically accurate,
+tion of Quinacridone Rose composited over Sap Green, with 65 these results at least provide very plausible physical
+thickness varying from left to right and bottom to top, approximations, which appear quite adequate for many
+respectively. applications.
+US 6, 198489 B1
+17 18
+Interactive Painting with Watercolors for the pear in Plate 8. Plate 7A is the result of compositing
+A computer program user interface for the present inven the three layers together. The second column (Plates 7B, E,
+tion has been written that allows a user to “paint the initial H, K) shows the same process done using Cerulean Blue
+conditions” for a watercolor Simulation. The user Sets up one instead of Sap Green for the top layer. Note that the
+or more layerS for the Simulation, where each layer has concentrations required in the bottom change as a result of
+Sub-layerS for pigments, water, and a wet-area mask. Com this. The third column (Plates 7C, F, I, L) shows that using
+mon to all layers are a reference image (a handy crutch for the same three pigments in a different order requires differ
+the artistically challenged) and a shaded paper texture. In the ent concentrations as well.
+current preferred embodiment, there are slider controls to The automatic brushstroking proceSS uses simple heuris
+adjust the layer parameters for damping, darkening, edge tics to create a glaze that approximates, but does not exactly
+kernel effects, Scale, and for Setting the number of iterations. match, the glaze target. The process is designed to take
+For each pigment, the weight and deposit may also be advantage of the flow of water as a way of creating gradients
+controlled by the user. and interesting textures within a wet region. For each matted
+The layer's pigment channels are represented by colored region of the target glaze, the following process is repeated
+images in the layer. Each pigment is painted independently 15 a small number of times (two to four times in the preferred
+using a circular brush with a Gaussian intensity drop-off. embodiment used to create the examples shown in the
+The brush size, penumbra, and Overall intensity parameters Plates):
+are adjustable. A palette of pigments associated with a layer 1. Compare the pigment distribution of the current glaze
+may be defined by Specifying the color of each pigment over to the target glaze, ignoring high frequency details (i.e.,
+black and over white, as described in the previous Section, Subtract one from the other, and apply a low-pass filter to the
+using a hue-Saturation-value color picker, or by loading difference).
+predefined pigments from files. 2. In areas where the current glaze is too light (by more
+Although a prototype watercolor Simulator runs too than Ö), add & units of pigment to the glaze, accompanied
+Slowly for interactive painting, compositing many layers of by water.
+pigments using the KM model is feasible in real-time, and 25 3. In areas where the current glaze is too dark (by more
+provides the user with valuable feedback about the colors than Ö), add 1 unit of water.
+that will result from the Simulation. The reference image, 4. Run the simulator for a small number of time steps
+paper texture, and Set of layers and their Sub-layers can be (three to ten time steps in the preferred embodiment used to
+independently toggled on and off, and displayed to the user create the examples).
+in any combination. Another helpful feature is a rendering 5. Multiply 8, by a refinement factor (0.5-1.0 in the
+window that displays the progreSS of running the Simulation preferred embodiment used to produce the examples) and
+on a (possibly scaled down) set of layers. Lower resolution repeat from Step 1.
+Simulations are enlarged for display in the viewing window, AS a final Step, highlights are created by removing paint
+and each frame of the Simulators animation is typically from areas defined by the user in the form of mattes. This is
+displayed in from a fraction of a Second to a few minutes. 35 analogous to the "lifting out” technique used by artists for
+Automatic Image “Watercolorization” similar effects. The final results are shown in Plate 8.
+Another application of the watercolor simulation proceSS Non-Photorealistic Rendering of 3D Models
+allows a color image that is input to the process to be A Straightforward extension of the automatic watercolori
+automatically converted into a watercolorlike illustration, Zation process discussed in the previous Section is to per
+once mattes for the key elements have been extracted and an 40 form non-photorealistic watercolor rendering directly from
+ordered set of pigments has been chosen, with one pigment 3D models. Given a 3D geometric model, mattes for each
+per translucent layer. In tests of this application of the object and their specular highlights can be automatically
+present invention, the mattes were quickly generated using generated. These automatically created mattes could be used
+a commercial paint program, and the Set of pigments were as input to the watercolorization process, along with a more
+selected by hand. 45 traditional “photorealistic' rendering of the Scene. Optimal
+The computer System performs the watercolorization of pigments could be input by hand, or computed through an
+an input color image in two Steps. It first computes color optimization process.
+Separations for the Specified pigments (as shown in Plate 7), Results
+and then applies a kind of “automatic brushstroking to give All images except for Plates 2 and 9 were generated by the
+the separations a hand-drawn appearance (as illustrated in 50 present invention. The figures for Plates 1 and 3 were
+Plate 8). rendered at 300 by 300 pixels, running for about 100-200
+The color Separations are calculated using a brute-force simulator iterations each (except for Plate 3D, which
+Search over a discrete Set of thicknesses for each pigment. In required 700 iterations). Each iteration required about two
+the preferred method, the thickness range for each pigment minutes to compute on a 150 MHz, R4400 processor, with
+is first divided into 20 steps, using a binary subdivision by 55 the exception of Plate 3E, which took about ten minutes, and
+a Manhattan distance in the six-dimensional space of the R Plate 3D, which took about 20 minutes. The table in FIG. 4
+and T. KM model parameters. Using the KM model, a lists the parameter definitions for the images in Plates 1 (i.e.,
+composite color is then computed for each of the 20 1A and 1B), and 3A-3F. In this table, parameters at non
+combinations, and the color is stored in a kd-tree (with k=3) default values are shown in bold font. Most of the non
+according to its RGB color values. (The tree is pruned so that default Setting are in the pigment-specific parameters, except
+60
+the difference between colors is less than 1/255.) Color when trying to obtain more unusual effects, Such as the
+Separations are computed by Searching the tree for each backruns of Plate 3D. The backrun parameters are only set
+pixel to find the pigment combination yielding the closest for Plate 3D; in all of the other plates referenced in this table,
+color to the desired color. These colors are Stored in an the backrun parameter is not used. Plate 3D has two columns
+image called the target glaze. of parameters, the first (indicated by *) applying to the initial
+65
+Several color separations are shown in Plate 7. The first Stroke, and the Second (indicated by **) applying to the
+column shows the color separations (Plates 7D, G, J) used Second application that produced the backrun. In regard to
+US 6, 198489 B1
+19 20
+Plates 1 (1A and 1B), a column is provided for each stroke, application that implements the present invention will also
+which are applied in Separate glazes, i.e., as Separate paint be loaded into the memory personal computer for execution
+applications, after drying. The column marked with for by CPU 253.
+Plate 1 (1A and 1B) is for the horizontal stroke, and the A serial/mouse port 239 (representative of the two serial
+column marked with ** is for the vertical stroke. In Plate ports typically provided) is also bidirectionally coupled to
+1A, the horizontal stroke was painted first, and in Plate 1B, data bus 233, enabling signals developed by mouse 240 to
+the Vertical Stroke was painted first. be conveyed through the data bus to CPU 253. It is also
+Plate 8 consists of eight major layers (three each for the contemplated that a universal serial bus (USB) port may be
+apple and pear, and two for the background) at a resolution
+included and used for coupling a mouse and other peripheral
+of 640 by 480 pixels. About 2250 time steps of the simulator
+devices to the data bus. A CD-ROM interface 259 connects
+were required to produce all of the layers. The final image
+CD-ROM drive 247 to data bus 233. The CD-ROM interface
+took about two hours to compute on the same processor may be a small computer Systems interface (SCSI) type
+noted above. (The glazes for the stem of the pear and the
+interface or other interface appropriate for connection to and
+dimple of the apple took up a negligible fraction of that time
+operation of CD-ROM drive 247.
+due to the relatively small area of these portions of the 15 A keyboard interface 245 receives signals from keyboard
+Subjects.)
+243, coupling the Signals to data buS 233 for transmission to
+Computer System Suitable for Implementing the Present
+CPU 253. Optionally coupled to data bus 233 is a network
+Invention interface 250 (which may comprise, for example, an ETH
+With reference to FIG. 13, a generally conventional
+ERNETTM card for coupling the personal computer or work
+personal computer 230 is illustrated, which is suitable for
+Station to a local area and/or wide area network).
+use in connection with practicing the present invention.
+When a software program is executed by CPU 253, the
+Alternatively, a WorkStation coupled to a network and Server
+machine instructions comprising the program that are Stored
+may instead be used. Personal computer 230 includes a
+on a floppy disk, a CD-ROM, a server (not shown), or on
+processor chassis 232 in which are mounted a floppy disk
+hard drive 236 are transferred into a memory 251 via data
+drive 234, a hard drive 236, a motherboard populated with 25
+appropriate integrated circuits (not shown), and a power bus 233. These machine instructions are executed by CPU
+253, causing it to implement functions determined by the
+Supply (also not shown), as are generally well known to
+machine instructions. Memory 251 includes both a nonvola
+those of ordinary skill in the art. A monitor 238 is included
+tile read only memory (ROM) in which machine instructions
+for displaying graphics and text generated by Software
+used for booting up personal computer 230 are Stored, and
+programs that are run by the personal computer. A mouse
+a random access memory (RAM) in which machine instruc
+240 (or other pointing device) is connected to a serial port
+tions and data are temporarily Stored when executing appli
+(or to a bus port) on the rear of processor chassis 232, and
+cation programs.
+Signals from mouse 240 are conveyed to the motherboard to
+Although the present invention has been described in
+control a cursor on the display and to Select text, menu
+options, and graphic components displayed on monitor 238 connection with the preferred form of practicing it, those of
+35
+by Software programs executing on the personal computer. ordinary skill in the art will understand that many modifi
+In addition, a keyboard 243 is coupled to the motherboard cations can be made thereto within the Scope of the claims
+for user entry of text and commands that affect the running that follow. Accordingly, it is not intended that the Scope of
+of Software programs executing on the personal computer. the invention in any way be limited by the above description,
+Personal computer 230 also optionally includes a compact but instead be determined entirely by reference to the claims
+40
+disk-read only memory (CD-ROM) drive 247 into which a that follow.
+CD-ROM disk may be inserted so that executable files and The invention in which an exclusive right is claimed is
+data on the disk can be read for transfer into the memory defined by the following:
+and/or into Storage on hard drive 236 of personal computer What is claimed is:
+230. Personal computer 230 may be coupled to a local area 45 1. A method for producing a watercolor simulation that
+and/or wide area network as one of a plurality of Such represents at least one wash applied to paper, each wash
+computers on the network. including at least one pigment dispersed in a fluid, compris
+Although details relating to all of the components ing the Steps of:
+mounted on the motherboard or otherwise installed inside
+(a) providing a fluid model that includes a plurality of
+processor chassis 232 are not illustrated, FIG. 14 is a block 50
+layers for each wash included in the watercolor
+diagram showing Some of the functional components that
+Simulation, wherein Said plurality of layerS comprise:
+are included. The motherboard has a data bus 233 to which
+(i) a shallow fluid layer in which the wash flows above
+these functional components are electrically connected. A
+a Surface of the paper;
+display interface 235, comprising a video card, for example,
+(ii) a pigment deposition layer where a pigment is
+generates Signals in response to instructions executed by a 55
+adsorbed and desorbed by the paper; and
+central processing unit (CPU) 253 that are transmitted to
+(iii) a capillary layer within the paper in which the wash
+monitor 238 So that graphics and text are displayed on the
+is diffused by a capillary action;
+monitor. A hard drive and floppy drive interface 237 is
+(b) as a function of a plurality of predefined parameters
+coupled to data bus 233 to enable bidirectional flow of data
+and instructions between data bus 233 and floppy drive 234 60 and in accord with the fluid model, Specifying how each
+or hard drive 236. Software programs executed by CPU 253 wash flows over the paper to determine quantities of
+are typically stored on either hard drive 236, or on a floppy each pigment
+disk (not shown) that is inserted into floppy drive 234. The (c) applying an optical composite model to render the
+Software instructions for implementing the present invention watercolor Simulation as a function of optical charac
+will likely be distributed either on floppy disks, or on a 65 teristics of each pigment and as a function of the
+CD-ROM disk or some other portable memory storage quantities of each pigment deposited at the plurality of
+medium. The machine instructions comprising the Software discrete Spatial locations on the paper.
+US 6, 198489 B1
+21 22
+2. The method of claim 1, wherein the plurality of in which Said at least one pigment is deposited on the high
+parameters include at least one of: regions of the paper, but not on the low regions, to Simulate
+(a) physical properties of each pigment employed in a dry brush application of Said at least one pigment to the
+producing the watercolor Simulation; texture of the paper.
+(b) physical properties of the paper used for the water 17. The method of claim 1, further comprising the step of
+color Simulation; and repeating Steps (a)-(c) to produce a plurality of frames of
+(c) predetermined values used in defining the fluid model. Successive watercolor Simulations in which at least one
+3. The method of claim 1, wherein the quantities of each depicted object changes position; and concatenating the
+pigment deposited at the plurality of discrete Spatial loca plurality of frames, So that when the plurality of frames are
+tions are Stored in an array, and wherein a data structure that displayed Sufficiently rapidly, they form an animation in
+includes the arrays for the pigments used in a wash com which Said object appears to move.
+prises a glaze. 18. The method of claim 1, wherein the watercolor
+4. The method of claim 1, wherein a Kubelka-Munk Simulation is based on a color image that is not a watercolor.
+model is employed as the optical composite model for 19. The method of claim 18, further comprising the steps
+rendering the watercolor Simulation. 15 of:
+5. The method of claim 1, wherein the step of specifying (a) providing a color image for conversion to the water
+how each wash flows over the paper includes the Step of color Simulation;
+determining a movement of the wash in the shallow fluid (b) extracting mattes for specific portions of the color
+layer, as a function of a Velocity of the wash as it moves over image,
+the paper.
+(c) selecting an ordered set of pigments to be applied to
+6. The method of claim 5, wherein the step of specifying
+the mattes,
+how each wash flows over the paper further includes the Step
+of reducing a divergence of a Velocity field for each wash by (d) determining color separations for the ordered set of
+redistributing the wash, So that the divergence in a specific pigments, and
+time interval is less than a predetermined value. 25 (e) applying an automatic brushstroking when rendering
+7. The method of claim 5, wherein the step of specifying the color Separations.
+how each wash flows over the paper further includes the Step 20. The method of claim 19, wherein the step of deter
+of reducing the quantity of pigment at the discrete Spatial mining the color Separations comprises the Steps of:
+locations as a function of the Velocity of the wash away from (a) dividing a thickness range for each of the ordered set
+the discrete Spatial locations. of pigment into a plurality of Steps, using a binary
+8. The method of claim 1, further comprising the step of Subdivision in the optical composite model;
+determining a rate of absorption and desorption for the (b) using the optical composite model, determining a
+pigment in each wash as a function of the predefined composite color for combination of the plurality of
+parameters, Said rate being used to determine the quantities StepS,
+of each pigment deposited at the discrete Spatial locations. 35 (c) storing the composite colors in a color tree according
+9. The method of claim 1, further comprising the step of
+to their color values, and
+providing an edge darkening effect as a function of the
+(d) determining the color separations by Searching the
+predefined parameters, by increasing the quantities of each
+color tree for each pixel to find a pigment combination
+pigment at discrete Spatial locations corresponding to edges
+for each discrete Spatial location that yields a color
+of areas in the watercolor simulation covered by a wash. 40 closest to a desired color in the colored image.
+10. The method of claim 1, further comprising the step of
+21. The method of claim 18, wherein the color image
+determining a diffusion of a wash through the capillary layer,
+comprises a three-dimensional geometric model.
+thereby increasing a wet-area in the watercolor Simulation,
+22. A System for producing a watercolor simulation that
+to Simulate a backrun effect.
+represents at least one wash applied to paper, each wash
+11. The method of claim 1, further comprising the step of 45 including at least one pigment dispersed in fluid, compris
+providing a user interface that enables a user to Selectively
+ing:
+adjust at least a Subset of the predefined parameters.
+(a) a memory in which a plurality of machine instructions
+12. The method of claim 11, wherein the user interface
+are Stored, Said machine instructions defining a plural
+enables the user to Select pigments that will be used in the
+ity of functions,
+watercolor Simulation. 50
+13. The method of claim 11, wherein the user interface (b) a device upon which images are rendered for viewing
+enables the user to Specify a color of a pigment as Said by a user; and
+pigment appears when applied over a specific background (c) a processor coupled to the memory and to the device
+color. upon which images are rendered, Said processor
+14. The method of claim 13, wherein the user specifies the 55 executing the machine instructions to implement the
+color components of the pigment as a functions of its plurality of functions, including:
+appearance as applied over both a black background and a (i) providing a fluid model that includes a plurality of
+white background, Said color components being then used to layerS for each wash included in the watercolor
+determine a set of absorption coefficients and Scattering Simulation, wherein Said plurality of layers comprise
+coefficients for each pigment. 60 a shallow fluid layer in which the wash flows above
+15. The method of claim 1, further comprising the steps a Surface of the paper, a pigment deposition lauer
+of enabling a user to Select at least a Subset of the predefined where a pigment is adsorbed and desorbed by the
+parameters that will be applied to each layer; and, providing paper, and a capillary layer within the paper in which
+a wet-area mask for at least one layer. the wash is diffused by a capillary action;
+16. The method of claim 1, wherein the paper specified 65 (ii) as a function of a plurality of predefined parameters
+has a texture that includes alternating high and low regions, and in accord with the fluid model, Specifying how
+further comprising the Step of Simulating a dry brush effect each wash flows over the paper to determine quan
+US 6, 198489 B1
+23 24
+tities of each pigment deposited at a plurality of teristics of each pigment and as a function of the
+discrete Spatial locations on the paper; and quantities of each pigment deposited at the plurality of
+(iii) applying an optical composite model to render the discrete Spatial locations on the paper.
+watercolor Simulation on the device as a function of 24. A method for producing a watercolor Simulation that
+optical characteristics of each pigment and as a represents at least one wash applied to paper, each wash
+function of the quantities of each pigment deposited including at least one pigment dispersed in a fluid, compris
+at the plurality of discrete Spatial locations on the ing the Steps of:
+paper.
+(a) providing a fluid model that includes a plurality of
+23. A method for producing a watercolor Simulation that
+layerS for each wash included in the watercolor Simu
+represents at least one wash applied to paper, each wash
+including at least one pigment dispersed in a fluid, compris lation; Said fluid model incorporating a shallow water
+ing the Steps of fluid layer in which water and a pigment comprising a
+wash flow over the paper with a velocity that deter
+(a) providing a fluid model that includes a plurality of
+mines the deposition of the pigment on the paper in a
+layerS for each wash included in the watercolor Simu
+pigment deposition layer;
+lation; 15
+(b) as a function of a plurality of predefined parameters (b) as a function of a plurality of predefined parameters
+and in accord with the fluid model, Specifying how each and in accord with the fluid model, Specifying how each
+wash flows over the paper to determine quantities of wash flows over the paper to determined quantities of
+each pigment deposited at a plurality of discrete Spatial each pigment deposited at a plurality of discrete Spatial
+locations on the paper, Such that locations on the paper, and
+(i) said quantities of each pigment are stored as a set of (c) applying an optical composite model to render the
+floating-point image arrays, with one array for each watercolor Simulation as a function of optical charac
+pigment in the wash, and teristics of each pigment and as a function of the
+(ii) a data structure that includes said floating-point quantities of each pigment deposited at the plurality of
+image arrays defines a glaze; and 25 discrete Spatial locations on the paper.
+(c) applying an optical composite model to render the
+watercolor Simulation as a function of optical charac k k k k k
+UNITED STATES PATENT AND TRADEMARK OFFICE
+CERTIFICATE OF CORRECTION
+PATENT NO. : 6, 198489 Bl Page 1 of 3
+DATED : March 6, 2001
+INVENTOR(S) : Salesin et al.
+It is certified that error appears in the above-identified patent and that said Letters Patent is
+hereby corrected as shown below:
+Title page.
+Item (56, 3rd reference, OTHER PUBLICATIONS,
+"Towards" should read -- Toward --
+Column !
+Line 8, before the section "FIELD OF THE INVENTION" please insert the following
+section:
+-- GOVERNMENT RIGHTS
+This invention was made with government support under N00014-96-1-0915 and
+N00014-95-1-0728 awarded by the U.S. Department of the Navy. The Government has
+certain rights to the invention. --
+Column 2
+Line 3, "simulationi" should read -- simulation --
+Line 17, "parameter-s" should read -- parameters --
+Column 3
+Line 1, "arc" should read -- are --
+Column 4
+Line 67, "arc" should read -- are --
+Column 5
+Line 44, "form's" should read -- forms--
+Column 8
+Line 38, "v.p," should read -- v, p., --
+Line 41, "Reduce Divergetice" should read -- Reduce Divergence --
+UNITED STATES PATENT AND TRADEMARK OFFICE
+CERTIFICATE OF CORRECTION
+PATENT NO. : 6,198.489 Bl Page 2 of 3
+DATED : March 6, 2001
+INVENTOR(S) : Salesin et al.
+It is certified that error appears in the above-identified patent and that said Letters Patent is
+hereby corrected as shown below:
+Column 9
+Line 23, "decreinented" should read -- decremented -- ; and
+“ui-I/2) )' should read -- uti+1/2,j)--
+Column 10
+Line 19, du dy
+“(du/ov +dv /dy)" should read --(+)--
+Ov dy
+Line 45, "(countzl maxsteps))" should read --(countkmaxsteps)) --
+Line 521., “v; 1/2-vi-112)" should read -- vii. 1/2-vij-112)--
+Column 11
+Line 9, "vcomputed" should read -- v computed --
+Line 38, “gs" should read-gs -
+Line 39, "gs" should read-gs -
+Line 40, i. gs" should read-gs--
+Line 4, "gs" should read-Ag.s
+S --
+Line 42, "gs" should read-gs--
+Line54, "gs=gs" should read-gs = g
+Column 13
+Line 51, "a" should read -- O --
+Column 14
+Line 20, after equation (3) please insert equation (4):
+-- K-S(a-1)
+where --
+UNITED STATES PATENT AND TRADEMARK OFFICE
+CERTIFICATE OF CORRECTION
+PATENT NO. : 6, 198489 B
+DATED : March 6, 2001
+INVENTOR(S) : Salesin et al.
+it is certified that error appears in the above-identified patent and that said Letters Patent is
+hereby corrected as shown below:
+Column 15
+Line 10, "R=sin hbSd/c" should read -- Risinh bSd/c --
+Line 15, "c=asin hbSD+b coshbSD" should read
+-- c = a sinh bSD + b cosh bSD --
+Column 16
+Line 14, "with." should read -- with --
+Column 18
+Line 36, "similar" should read -- similar --
+Signed and Sealed this
+Twelfth Day of February, 2002
+JAMESE. ROGAN
+Attesting Officer Director of the United States Patent and Trademark Office

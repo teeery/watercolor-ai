@@ -1,0 +1,29 @@
+Rebelle & Expresii 都是闭源的不错的水彩模拟引擎，他们虽然不能赚大钱但是也有一点钱拿，有个问题是他们还没融合AI
+
+以下是一些开源的绘画引擎：
+Open‑Watercolor‑Sim（Taichi，Python）
+Watercolor_simulation（Godot + Compute Shader）
+Syntic（Haskell）
+shuimo‑liuyun（WebGL 水墨）
+OpenBrush（Unity）MIT
+Paint‑Splatter（Swift Metal）
+底层求解库：
+Stable Fluids（Jos Stam 经典算法）
+LiquidFun（Box2D 流体粒子）
+Taichi‑Lang：GPU 计算框
+
+还有一些有趣的网站文字：
+https://www.tylerxhobbs.com/words/a-guide-to-simulating-watercolor-paint-with-generative-art（指南到模拟水彩画油漆其中生成式艺术）
+一个在线运行的网站https://sudoaquarelle.com/
+
+追求智能上限，创造社会价值
+
+长程与涌现技法。笔数从 40-80 往上推、时间线从 10 秒往分钟推、题材从静物往肖像推。真正的上限里程碑是：agent 自己发明出引擎作者没编程的笔法组合（比如自己发现"先盐后水的次序更出花边"）。那一刻它的智能越过了我们给它的指令空间——这是可以写进文档的"上限时刻"验收标准。
+
+技巧迁移。跨画、跨题材、跨纸质的课程学习：在冷压纸上学会的颗粒控制，迁移到热压纸时 agent 自己意识到要改水量。这是窄域里最接近"通用"的东西。
+
+社会价值在哪：
+工艺的可机器读保存。stroke 协议本质是水彩技法的结构化语法（湿铺、干皴、再润湿……）。老师傅的技法正随人消失；我们把它变成机器可读、可回放、可教学的形态，这是对非物质文化遗产数字化的一条真路径。
+过程透明即教育。干燥时间线回放让任何人亲眼看见"水痕长出来"——这同时是美术课教材和 AI 透明性的演示。现在 AI 生成画全是黑箱，我们这盒是透明的，证据链完整（dsh-studio 的架构遗产）。
+意图级创作的无障碍化。手抖、瘫痪、年迈握不住笔的人，在 stroke 协议上以"意图"作画——这是 diffusion"一句话出图"给不了的：给的是一幅画 你的 过程。
+诚实的开源探针。"永不伪造批评、撤笔留档"这一条守则本身，就是 AI 对齐话语里的一个微小但可复现的示范。它不解决对齐，但它展示"一个诚实的 agent 长什么样"。
