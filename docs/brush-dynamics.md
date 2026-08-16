@@ -156,7 +156,7 @@ LLM 写作例：`"motion": { "verb": "拖", "pressure": [0.4, 1.0, 0.1] }`——
 }
 ```
 
-- **兼容规则（机械判据，非口头承诺）**：`brush` / `motion` / `load.tip` / `interleave` 任一出现 → 新动力学管线；全部缺席 → legacy 管线（**原代码冻结**，逐像素回归）。`type` 在两条管线里都是 recipe 查表键。
+- **兼容规则（机械判据，非口头承诺）**：`brush` / `motion` / `load.tip` / `interleave` 任一出现 → 新动力学管线；全部缺席 → legacy 管线（**原代码冻结**——M0 已破"逐位一致"回归，legacy 的回归锚改为"与 M0 后基线一致"，判据 = 探针 + vision，见 §11 注）。`type` 在两条管线里都是 recipe 查表键。
 - **单位**：`width` 等长度以 1280×960 画布坐标为基准，笔刷层 ×0.5 落到 640×480 模拟网格（v0.2 示例 width:60 即画布口径）。
 - **命名归一（评审 S1-8 采纳）**：水的三处概念合并——顶层 `water`（v0.1）与 `brush.load`（v0.2）在新管线里**统一为 `load.water`**；`brush.load` 标记废弃（写了的按装水量折算到 load.water）。`motion.speed` 在 v0.3 允许标量或数组（标量 = 常数剖面）。
 - **v0.1 → v0.3 字段映射表**（legacy 场景无需重写，但新 agent 应知旧字段的语义归宿）：
@@ -202,7 +202,7 @@ demo/brush-lab.js 9 格验收面板（待建）
 1. 守恒：任意笔 `Σdw ≤ load.water·cap + 1e-6`，`wLoad ≥ 0`、`pLoad ≥ 0` 全程；
 2. 单调：`gb(s)` 非降、`amount(s)` 非增（无 pickup 时）；
 3. 确定性：同 seed 两次渲染字节级一致；
-4. 回归：legacy 32 笔场景与基线 `demo_final.png` 像素差 = 0；
+4. 回归：legacy 32 笔场景与 M0 后基线一致——**像素差硬门槛已不可用**（M0 活跃集迭代顺序已破逐位一致，Montesdeoca 精读确认 mean .12/255），回归判据 = 探针剖面 + vision 评分不退化（±0.5 分内）；
 5. 配方调校：wet-wash 耗尽点 s* ∈ [0.5,0.85]；dry-brush 在 gb=0.5 时余水比 ∈ [0.3,0.6]。
 
 **统计代理（评审 S1-9 采纳，vision 之外的第二道判官）**：
@@ -233,6 +233,7 @@ demo/brush-lab.js 9 格验收面板（待建）
 - 已知限：慢笔早枯是物理事实——长笔画必须短（agent 笔序要写短笔、勤蘸笔）；interleave 的时间压缩率按笔画长度固定（90 步），超长笔画的前后干燥差会饱和；脏笔吸色未落地前，湿接湿只稀释不染色。
 - 精读复核发现的引擎侧问题:① 沉积率高度符号反(`1+expo·(H−0.5)` → Curtis 应为 `1−σ·H`)与 ② `edgeK` 阶段恒 no-op——**已由 M0 会话在 `src/core/engine.js` 修复**(bugfix 注释引 Curtis 精读复核,2026-08,工作区);③ 无解吸项(lift/湿接湿的纸侧因果根缺失)与 ④ backrun ≠ "掩码扩张+边缘先干"(是毛细层容量扩散,我们的 re-wet 是自创算子,不应挂 Curtis 名)——仍待 medium-upgrade。详见 `research/curtis1997-close-reading.md`。
 - 时域相干警示(Bousseau 2006 §2,见 `research/bousseau2006-close-reading.md`):"扩散必破坏时域相干"——我们的半拉格朗日+拉普拉斯是时域脆点,drying_timeline 帧间跳变是扩散+离散采样的**固有产物**,不是渲染 bug。缓解三件(Phase 2 前必须):① 特征生灭连续化(frontDeposit/bloom 一步钉死 → 2-3 步 ramp);② M0 静止短路重启加 2-3 步淡入(硬切换正是论文要消的离散跳变,归 perf 工作流);③ 层级+reveal 时间模式(Zheng 2017 附录 F)。
+- Montesdeoca 2017 精读的 medium-upgrade 侧指针(见 `research/montesdeoca2017-close-reading.md`):① 纸坡 ∇H 入 M1 流场(现仍用 G 噪声顶替);② render 线性边缘项改指数+可变宽(抄 NPAR §3.1);③ M4 干笔改峰值阈值 split(抄 NPAR §4.1);④ bleeding 蓝图(湿门 joint-bilateral)给 P2;⑤ **验收口径整体切换:像素差 → vision+探针**(M0 已破逐位一致)。
 
 ## 附录 A：数值探针原始数据（摘要）
 
@@ -304,3 +305,13 @@ demo/brush-lab.js 9 格验收面板（待建）
 2. **采纳**:① 特征生灭 2-3 步 ramp(frontDeposit/bloom 一步钉死改渐变,归 medium-upgrade);② M0 静止短路重启加淡入斜坡(归 perf 工作流);③ 密度参数 d 统一渲染接口(替代 edgeDarken/granShade 魔数,归 render/color 线);④ 抽象先行单帧校验(归 Phase 1 agent 层);
 3. **修正 §6**:interleave 预算从定值封顶改按弧长连续分配 + 软上限(已改);
 4. **哲学警示入 §12**:"扩散必破坏时域相干"——drying_timeline 跳变是扩散+离散采样的固有产物,Phase 2 前必须上三项缓解。
+
+## 附录 H:Montesdeoca 2017 姊妹篇精读复核(摘要)
+
+全文见 `research/montesdeoca2017-close-reading.md`。净影响:
+
+1. **坚持 FlowOutward,不抄其静态边缘**:他无透明带/水线/浅线三层、无时间演化——M2 岸线算子必须走 Curtis 输送路线;只抄"宽度/强度分离 + 指数变暗"进 render 缝;
+2. **granulation**:他纯着色、我们质量守恒(更近 Curtis);高度符号两侧已修,不再动;净抄 NPAR 峰值阈值 split 给 M4 干笔;
+3. **渗色 ≠ bloom**:两篇都没实现 backrun,M3 曲率驱动是自创;bleeding 蓝图(湿门 joint-bilateral)抄给 P2;
+4. **验收口径切换**(已改 §9/§11):M0 破逐位一致 → 回归判据从像素差改为探针 + vision;
+5. 其余 medium-upgrade 侧指针(纸坡 ∇H、render 指数边缘、干笔峰值阈值)已记 §12。
