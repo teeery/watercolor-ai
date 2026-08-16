@@ -37,7 +37,7 @@ const { apply, render } = studio;
 
 // P1 盐花：颗粒蓝湿铺 + 撒盐
 apply({ type: "wet-wash", region: { cx: 64, cy: 240, rx: 44, ry: 66 }, pigment: { color: "#3a4a7a", granulation: 0.9, staining: 0.7, amount: 1.6 }, water: 0.65, layers: 1 }, 40);
-apply({ type: "salt", center: { cx: 64, cy: 240 }, count: 11, spread: 42, rMin: 4, rMax: 13, lift: 0.95, arms: 7 }, 320);
+apply({ type: "salt", center: { cx: 64, cy: 240 }, count: 9, spread: 40, rMin: 5, rMax: 14, lift: 0.95, arms: 5 }, 320);
 
 // P2 硬边（hard 标志 + soft 0.5）vs 软边（soft 10）
 apply({ type: "wet-wash", region: { cx: 164, cy: 240, rx: 36, ry: 60 }, pigment: { color: "#c74a5b", granulation: 0.4, staining: 0.5, amount: 1.4 }, water: 0.55, hard: true }, 220);
@@ -53,9 +53,9 @@ writePNG(`${OUT}/m4_p1_salt.png`, ...(() => { const c = crop(full1, 0, 352, PW *
 writePNG(`${OUT}/m4_p2_hardedge.png`, ...(() => { const c = crop(full1, 256, 352, PW * SC, PH * SC, 1); return [c.data, c.w, c.h]; })());
 writePNG(`${OUT}/m4_p4_liftpile.png`, ...(() => { const c = crop(full1, 768, 352, PW * SC, PH * SC, 1); return [c.data, c.w, c.h]; })());
 
-// —— P3 重力淌色（独立 studio）——
-const gStudio = createStudio({ width: 640, height: 480, seed: 9, painterSeed: 23, params: { gravRun: 0.22, runW0: 0.2 } });
-gStudio.apply({ type: "wet-wash", region: { cx: 64, cy: 160, rx: 52, ry: 40 }, pigment: { color: "#5b8fc7", granulation: 0.3, staining: 0.5, amount: 1.6 }, water: 0.9, layers: 2 }, 420);
+// —— P3 重力淌色（独立 studio；蒸发放慢 + 淌动中固着慢 → 颜料随水流走）——
+const gStudio = createStudio({ width: 640, height: 480, seed: 9, painterSeed: 23, params: { gravRun: 0.4, runW0: 0.1, evap: 0.004 } });
+gStudio.apply({ type: "wet-wash", region: { cx: 64, cy: 150, rx: 52, ry: 40 }, pigment: { color: "#5b8fc7", granulation: 0.3, staining: 0.3, amount: 1.6 }, water: 0.95, layers: 3 }, 420);
 const gFull = gStudio.render();
 writePNG(`${OUT}/m4_p3_run.png`, ...(() => { const c = crop(gFull, 0, 224, PW * SC, PH * SC, 1); return [c.data, c.w, c.h]; })());
 
@@ -65,7 +65,7 @@ const presets = ["hot", "cold", "rough"];
 const hex = ["#7da6c9", "#7da6c9", "#7da6c9"];
 for (let p = 0; p < 3; p++) {
   const ps = createStudio({ width: 128, height: 128, seed: 9, painterSeed: 23, params: { paper: { preset: presets[p] } } });
-  ps.apply({ type: "wet-wash", region: { cx: 64, cy: 64, rx: 44, ry: 48 }, pigment: { color: hex[p], granulation: 0.8, staining: 0.55, amount: 1.6 }, water: 0.6, layers: 1 }, 300);
+  ps.apply({ type: "wet-wash", region: { cx: 64, cy: 64, rx: 44, ry: 48 }, pigment: { color: hex[p], granulation: p === 2 ? 1.0 : 0.8, staining: 0.55, amount: 1.6 }, water: 0.6, layers: 1 }, 300);
   const img = ps.render();
   for (let y = 0; y < img.h; y++) {
     for (let x = 0; x < img.w; x++) {

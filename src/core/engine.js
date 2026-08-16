@@ -105,6 +105,7 @@ export class WatercolorEngine {
       shoreBreak: 0.7,  // M2：沿切线噪声断环深度（0=连续环，1=全断）
       gravRun: 0,      // M4：重力淌色强度（0=关；高含水区向下淌流 + 沿 x 的纵向通道噪声 → 滴流/淌痕）
       runW0: 0.2,      // M4：淌色触发水量阈值（低阈值 → 淌动窗口更长）
+      dripThresh: 0.10, // M4：滴流推进阈值（底部水压 × 通道噪声 > 阈值 → 前沿向下推一格）
       ...params,
     };
 
@@ -433,7 +434,7 @@ export class WatercolorEngine {
         if (d > R) continue;
         const i = row + x;
         const ang = Math.atan2(dy, dx);
-        const star = 0.45 + 0.55 * Math.abs(Math.cos(ang * arms * 0.5)); // M4：星形臂更长（盐眼放射状）
+        const star = 0.55 + 0.45 * Math.abs(Math.cos(ang * arms * 0.5)); // M4.1：瓣加宽（谷地板 0.55）→ 臂读得出来
         if (d < r * star) {
           // 盐晶吸色：心部颜料被推开（亮斑，D 通道全量吸 → 近白盐眼）
           for (let c = 0; c < ch; c++) { P[c][i] *= 1 - lift; D[c][i] *= 1 - lift; }
@@ -708,7 +709,7 @@ export class WatercolorEngine {
         let uyv = -(W[iD] - W[iU]) * 0.5 * kPress * kk + grav * wv - (H[iD] - H[iU]) * 0.5 * kSlope * wv;
         if (p.gravRun > 0 && wv > p.runW0) {
           // M4：重力淌色——高含水区向下淌流，沿 x 的通道噪声形成纵向滴流/淌痕
-          uyv += p.gravRun * wv * (0.5 + valueNoise2D(x * 0.07 + 2.2, 3.7, 47));
+          uyv += p.gravRun * wv * (0.3 + 1.2 * valueNoise2D(x * 0.07 + 2.2, 3.7, 47));
         }
         if (kFib > 0) {
           const tdot = uxv * Tx[i] + uyv * Ty[i];
@@ -778,6 +779,43 @@ export class WatercolorEngine {
     for (let k = 0; k < ac; k++) {
       const i = al[k];
       if (!M[i] && W[i] > theta) { M[i] = 1; this._tl[this._tlCount++] = i; }
+    }
+    // M4 重力滴流：底部水压 × 通道噪声 → 湿前沿向下推进一格（滴流/淌痕的成因）
+    // 取边界格与其上方格中水多者为源，水+颜料按比例转移 → 尾巴必然可见
+    if (p.gravRun > 0) {
+      for (let k = 0; k < ac; k++) {
+        const i = al[k];
+        if (!M[i]) continue;
+        const x = alx[k], y = aly[k];
+        if (y >= h - 1) continue;
+        const below = i + w;
+        if (M[below]) continue;
+        const above = y > 0 ? i - w : i;
+        const src = W[above] > W[i] ? above : i;
+        const head = W[src];
+        if (head <= p.runW0) continue;
+        const chan = valueNoise2D(x * 0.07 + 2.2, 3.7, 47);
+        if (head * chan < p.dripThresh) continue;
+        const move = Math.min(head * 0.4, head - 0.03);
+        if (move <= 0) continue;
+        const frac = move / head;
+        W[below] = Math.min(2, W[below] + move);
+        W[src] -= move;
+        for (let c = 0; c < ch; c++) {
+          const pc = P[c][src] * frac;
+          P[c][below] += pc;
+          P[c][src] -= pc;
+        }
+        const pm = Pm[src] * frac;
+        Pm[below] += pm; Pm[src] -= pm;
+        M[below] = 1;
+        // 扩展 bbox 使其不落入孤儿集
+        const b = this._bbox;
+        if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x;
+        if (y + 1 < b.y0) b.y0 = y + 1; if (y + 1 > b.y1) b.y1 = y + 1;
+        this._pushActive(below);
+        this._tl[this._tlCount++] = below;
+      }
     }
 
     // ---------- 4) 颜料半拉格朗日平流（每通道） ----------
@@ -858,6 +896,7 @@ export class WatercolorEngine {
       let kk = depScale * (1 - expo * hb) * (1 + granScale * grain);
       const cap = 1 - W[i] / capLam;
       kk *= cap > capMin ? cap : capMin;
+      if (p.gravRun > 0) kk *= 1 - Math.min(0.6, p.gravRun * W[i] * 1.5); // M4：淌动中固着变慢 → 颜料随水流走（滴流/淌痕的成因）
       kk = kk < 0 ? 0 : kk > 0.5 ? 0.5 : kk;
       let total = 0;
       for (let c = 0; c < ch; c++) total += P[c][i];

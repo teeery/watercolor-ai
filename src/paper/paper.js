@@ -9,7 +9,7 @@ import { fbmField, fbm2D, valueNoise2D } from "./noise.js";
 const PAPER_PRESETS = {
   hot: { amplitude: 0.4, freq: 0.012, grainFreq: 0.14, grainAmp: 0.25, speckleFreq: 0.5, fiberAmp: 0.05, capScale: 0.3 },
   cold: {},
-  rough: { amplitude: 1.6, freq: 0.03, grainFreq: 0.2, grainAmp: 1.0, speckleFreq: 0.16, fiberAmp: 0.42, fiberBias: 0.4, capScale: 0.75 },
+  rough: { amplitude: 1.6, freq: 0.03, grainFreq: 0.2, grainAmp: 1.0, speckleFreq: 0.16, fiberAmp: 0.35, fiberBias: 0.2, capScale: 0.75 },
 };
 
 /**
