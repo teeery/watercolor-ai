@@ -88,6 +88,7 @@ export class WatercolorEngine {
       sigmaG: 0.05,     // M1：σ 的纸纹分量
       sigmaP: 0.06,     // M1：σ 的颜料密度分量（重湿处更钉）
       sigmaL: 0.03,     // M1：σ 的沿纤维线段纹理分量
+      sigmaM: 0.06,     // M2.1：σ 的低频宏观分量（30-60 格波长缺口/半岛，破圆润宏观轮廓）
       hindrance: 0.5,   // M1：阻滞强度（颜料横纤维流速打折 → 方向颗粒/沉积断裂的物理版）
       hindRange: 0.5,   // M1：阻滞随 |u| 上升的平滑区间
       fixRate: 0.5,     // M1：渐变固着率/步（MoXi SIMULATEFIXTURE，替换二值冻结）
@@ -202,7 +203,8 @@ export class WatercolorEngine {
   }
 
   /** M1 σ 钉扎阈值（MoXi §5.3.3 式9 的落地）：
-   *  σ = σ0 + σg·(G−0.5)·2 + σp·min(1, Ptotal·0.5) + σl·(沿纤维线段噪声−0.5)·2 */
+   *  σ = σ0 + σg·(G−0.5)·2 + σp·min(1, Ptotal·0.5) + σl·(沿纤维线段噪声−0.5)·2
+   *      + σm·(低频宏观噪声−0.5)·2   ← M2.1：宏观缺口/半岛 */
   _sigmaAt(i) {
     const { G, Tx, Ty } = this.paper;
     const p = this.p;
@@ -211,7 +213,9 @@ export class WatercolorEngine {
     const x = i % this.w, y = (i / this.w) | 0;
     const a = x * Tx[i] + y * Ty[i], b = -x * Ty[i] + y * Tx[i];
     const line = valueNoise2D(a * 0.04 + 2.7, b * 0.35, 61);
-    return p.sigma0 + p.sigmaG * (G[i] - 0.5) * 2 + p.sigmaP * Math.min(1, pt * 0.5) + p.sigmaL * (line - 0.5) * 2;
+    const mac = fbm2D(x * 0.03 + 5.1, y * 0.03 + 8.7, { octaves: 2, seed: 83 });
+    return p.sigma0 + p.sigmaG * (G[i] - 0.5) * 2 + p.sigmaP * Math.min(1, pt * 0.5)
+      + p.sigmaL * (line - 0.5) * 2 + p.sigmaM * (mac - 0.5) * 2;
   }
 
   /** 沉积注入：mask 为 [0,1] Float32Array（已含形状与软边），water 0..1，amount 颜料质量
@@ -335,12 +339,76 @@ export class WatercolorEngine {
     }
   }
 
+  /** M3：曲率驱动半径剖面（菜花失稳的玩具模型）：
+   *  R ← R + dt·(vc·(κ̄−κ(θ)) + vn·noise(θ)) + D·R'' —— 低曲率处生长、高曲率凹口停驻，
+   *  曲率扩散项把尖角抹圆（圆润由构造保证）；谷地板防 V 形尖凹口；均值归位保环径。 */
+  _bloomProfile(radius, seed) {
+    const N = 256;
+    const R = new Float32Array(N);
+    for (let j = 0; j < N; j++) {
+      const th = (j / N) * Math.PI * 2;
+      const n = fbm2D(Math.cos(th) * 1.4 + seed * 0.7, Math.sin(th) * 1.4 - seed * 0.3, { octaves: 3, seed: 101 });
+      R[j] = radius * (1 + 0.06 * (n - 0.5) * 2);
+    }
+    const nArr = new Float32Array(N);
+    for (let j = 0; j < N; j++) {
+      const th = (j / N) * Math.PI * 2;
+      nArr[j] = fbm2D(Math.cos(th) * 2.1 + seed * 1.1, Math.sin(th) * 2.1 + seed * 0.9, { octaves: 2, seed: 211 });
+    }
+    const dt = 0.3, vc = 0.6, vn = 0.05, diff = 0.15;
+    const kaps = new Float32Array(N);
+    for (let it = 0; it < 22; it++) {
+      const prev = R.slice();
+      let kapMean = 0;
+      for (let j = 0; j < N; j++) {
+        const jm = (j + N - 1) % N, jp = (j + 1) % N;
+        const R1 = (prev[jp] - prev[jm]) * 0.5;
+        const R2 = prev[jp] - 2 * prev[j] + prev[jm];
+        const denom = Math.pow(prev[j] * prev[j] + R1 * R1, 1.5) + 1e-9;
+        // 无量纲曲率 κ·R（生长率与前沿尺度匹配）
+        kaps[j] = ((prev[j] * prev[j] + 2 * R1 * R1 - prev[j] * R2) / denom) * prev[j];
+        kapMean += kaps[j];
+      }
+      kapMean /= N;
+      for (let j = 0; j < N; j++) {
+        const jm = (j + N - 1) % N, jp = (j + 1) % N;
+        const R2 = prev[jp] - 2 * prev[j] + prev[jm];
+        R[j] = prev[j] * (1 + dt * (vc * (kapMean - kaps[j]) + vn * (nArr[j] - 0.5) * 2)) + diff * R2;
+        if (R[j] < radius * 0.55) R[j] = radius * 0.55;
+        if (R[j] > radius * 1.55) R[j] = radius * 1.55;
+      }
+    }
+    // 花瓣谷地板：凹口肥圆不尖
+    for (let j = 0; j < N; j++) if (R[j] < radius * 0.86) R[j] = radius * 0.86;
+    // 均值归位
+    let mean = 0;
+    for (let j = 0; j < N; j++) mean += R[j];
+    mean /= N;
+    const s = radius / mean;
+    for (let j = 0; j < N; j++) R[j] *= s;
+    return R;
+  }
+
   /** 清水滴回流开花算子（显式搬运版，通道泛化）：
    *  内区 (d<Rθ) 溶液+沉积颜料按比例扣走 → 沿同角度搬到噪声调制的前沿带钉入沉积
-   *  → 深色蕾丝环必然成形；滴心稀释 → 浅色水渍心。 */
-  pushPigmentRadial(cx, cy, radius, strength = 24) {
+   *  → 深色蕾丝环必然成形；滴心稀释 → 浅色水渍心。
+   *  M3：形状生成器换曲率驱动半径剖面（表驱动）；质量守恒搬运机制不动。 */
+  pushPigmentRadial(cx, cy, radius, strength = 24, seed) {
     const { w, h, P, Pm, D, Dm, paper, ch, _sP } = this;
     const { F } = paper;
+    if (seed === undefined) {
+      if (this._bloomCount === undefined) this._bloomCount = 0;
+      seed = this._bloomCount++ * 13.7 + radius * 0.31;
+    }
+    const prof = this._bloomProfile(radius, seed);
+    const N = prof.length;
+    const profAt = (ang) => {
+      let t = ang % (Math.PI * 2);
+      if (t < 0) t += Math.PI * 2;
+      t = (t / (Math.PI * 2)) * N;
+      const j0 = t | 0, j1 = (j0 + 1) % N, f = t - j0;
+      return prof[j0] * (1 - f) + prof[j1] * f;
+    };
     for (let c = 0; c < ch; c++) _sP[c].set(P[c]);
     const R = radius + strength + 4;
     const x0 = Math.max(0, Math.floor(cx - R));
@@ -354,10 +422,7 @@ export class WatercolorEngine {
         const dx = x - cx, dy = y - cy;
         const d = Math.sqrt(dx * dx + dy * dy);
         const ang = Math.atan2(dy, dx);
-        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
-        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
-        const nA = 0.7 * nA1 + 0.3 * nA2;
-        const Rθ = radius * (1 + 0.42 * (nA - 0.5) * 2);
+        const Rθ = profAt(ang);
         // 圆心格：只扣走、无搬运目的地（消除中心黑点伪影）
         if (d <= 0.01) {
           const k = 0.55;
@@ -387,7 +452,7 @@ export class WatercolorEngine {
         const ca = Math.cos(ang + aJit), sa = Math.sin(ang + aJit);
         const jit = (F[(x + 17) % w + ((y + 13) % h) * w] - 0.5) * radius * 0.28;
         const destR = Rθ * (1 + 0.08 * nz) + jit;
-        const petal = 0.5 + 0.5 * (nA - 0.5) * 2;
+        const petal = 0.55 + 0.45 * Math.min(1, Math.max(0, (Rθ / radius - 1) / 0.35)); // 瓣尖溅射更浓
         const bandW = 1.5 + 2.5 * (0.5 + 0.5 * nz);
         const splat = (rr, frac) => {
           let fx = cx + ca * rr, fy = cy + sa * rr;
@@ -422,10 +487,7 @@ export class WatercolorEngine {
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d <= 0.01 || d > radius + strength + 4) continue;
         const ang = Math.atan2(dy, dx);
-        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
-        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
-        const nA = 0.7 * nA1 + 0.3 * nA2;
-        const Rθ = radius * (1 + 0.5 * (nA - 0.5) * 2);
+        const Rθ = profAt(ang);
         let amb = 0;
         for (let c = 0; c < ch; c++) amb += D[c][i] + P[c][i];
         if (amb <= 1e-5) continue;
@@ -461,10 +523,7 @@ export class WatercolorEngine {
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d <= 0.01) continue;
         const ang = Math.atan2(dy, dx);
-        const nA1 = fbm2D(ang * 1.1 + 3.7, ang * 1.7 + 9.1, { octaves: 2, seed: 31 });
-        const nA2 = fbm2D(ang * 3.9 + 1.3, ang * 5.1 + 6.7, { octaves: 2, seed: 57 });
-        const nA = 0.7 * nA1 + 0.3 * nA2;
-        const Rθ = radius * (1 + 0.5 * (nA - 0.5) * 2);
+        const Rθ = profAt(ang);
         if (d < Rθ * 0.75) {
           for (let c = 0; c < ch; c++) { P[c][i] *= 0.42; D[c][i] *= 0.55; }
           Pm[i] *= 0.42; Dm[i] *= 0.55;
