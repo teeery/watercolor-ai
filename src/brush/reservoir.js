@@ -25,8 +25,8 @@ export const RESERVOIR_CONSTANTS = {
   capFactor: 45,     // 容量 → 水库预算系数(校准:满载笔覆盖 ~1.5-2× 典型笔画,飞白只在尾部涌现)
   // 桶配比
   tipFrac: 0.15, bellyFrac: 0.6, heelFrac: 0.25,
-  // 压力接触门(smoothstep 区间;v2.0 校准放宽:轻压也有腹桶参与)
-  bellyP: [0.35, 0.6], heelP: [0.65, 0.85],
+  // 压力接触门(smoothstep 区间;v2.0 校准:低压也有腹桶参与,起笔不空)
+  bellyP: [0.25, 0.5], heelP: [0.55, 0.75],
 };
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);

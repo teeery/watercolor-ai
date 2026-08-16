@@ -26,7 +26,7 @@ function makeStudio() {
   // 交互调优(干笔 × σ/侵蚀)记为跨会话 TODO,见 COORDINATION.md §3。
   return createStudio({
     width: CW, height: CH, seed: 3, painterSeed: 11,
-    params: { sigma0: 0, macroCut: 0 },
+    params: { sigma0: 0, macroCut: 0, frontDeposit: 0.05 },
   });
 }
 

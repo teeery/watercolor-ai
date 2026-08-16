@@ -10,9 +10,9 @@ import { paintFootprint } from "./footprints.js";
 const GRID_SCALE = 0.5;   // 画布 → 网格
 const VSCALE = 60;        // speed=1 → 60 px/s(画布口径)
 const SPACING = 0.35;     // Δs = SPACING·width(网格口径;0.35 密戳消"印章链")
-const CHUNKS = 6;         // interleave 分块数
+const CHUNKS = 12;        // interleave 分块数(块多步少 → W 场沿笔连续,消块边界湿暗带/前缘环)
 const kStep = 0.3;        // interleave 步数 ∝ 弧长系数(§6:总步数 = min(arcLen·kStep, budgetMax))
-const SEG_PER_SEGMENT = 4; // 每段戳数(路径顺序分段:无量化、沿路径密度连续)
+const SEG_PER_SEGMENT = 1; // 每段戳数(=1 时量档沿路径逐戳连续,消月牙色阶带)
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -137,7 +137,7 @@ export class BrushState {
   _flushSegments(segList) {
     const eng = this.eng;
     const prov = this.pigmentProvider;
-    const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
+    const K_WATER = 6.0, K_AMOUNT = 0.9; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(0.9 使沿笔密度梯度落在 KM 线性区,不被饱和掩盖)
     const covered = this._cover; // 跨块持久(本笔内):max-blend 覆盖掩码不随 chunk 重置 → 杀块边界双倍沉积串珠
     // 按路径顺序沉积(笔头定义前缘线),covered mask 做 max-blend:每格只被先到者覆盖一次
     for (const b of segList) {
@@ -147,8 +147,8 @@ export class BrushState {
       const wetAvg = b.wetSum / b.n;
       const gbAvg = b.gbSum / b.n;
       // 毛缘门控:干态涌现(有效毛厚过渡);湿池(低 gb)抑制腹池内部的毛痕,干态(高 gb)毛痕横贯笔腹(排线)
-      const gbScale = 0.25 + 0.75 * gbAvg;
-      const suppressInterior = gbAvg < 0.5;
+      const gbScale = 0.15 + 0.85 * gbAvg;
+      const suppressInterior = gbAvg < 0.55;
       for (let i = 0; i < b.bristle.length; i++) {
         const pool = b.pool[i];
         let m = b.bristle[i] * gbScale;
@@ -168,11 +168,11 @@ export class BrushState {
       }
       // 干态纸齿断纹(飞白):gb 渐变门槛(gb 0.15→1 平滑过渡,非开关切换);
       // F 采样沿段内笔势长距离拉伸(0/4/8 格)→ 丝状/条状枯笔,非各向同性雪花噪
-      if (gbAvg > 0.15) {
+      if (gbAvg > 0.55) {
         const F = eng.paper.F;
         const w = eng.w, h = eng.h;
-        const g = Math.min(1, (gbAvg - 0.15) / 0.85);
-        // 阈值随干度上升:gb=0.15 不裂 → gb=1 时约 85% 断掉、15% 留成丝(越干越疏,单调)
+        const g = Math.min(1, (gbAvg - 0.55) / 0.45);
+        // 阈值随干度上升:gb=0.55 不裂 → gb=1 时约 85% 断掉、15% 留成丝(越干越疏,单调)
         const thr = 0.85 * g;
         const dlen = Math.hypot(b.dirX, b.dirY) || 1;
         const ux = b.dirX / dlen, uy = b.dirY / dlen;
