@@ -53,6 +53,8 @@ export class WatercolorEngine {
     // M1 σ 钉扎 scratch：depositMask 中被钉扎的格 + 其 mask 值
     this._pinBuf = new Uint32Array(this.n);
     this._pinM = new Float32Array(this.n);
+    // M2.3：本笔"旧湿格"标记（宏观侵蚀的湿接保护）
+    this._om = new Uint8Array(this.n);
     // 孤儿集：W>0 但在迭代 bbox 之外的格（bbox 版不处理它们，直到 bbox 扩张或尾部蒸发）
     this._ol = new Uint32Array(this.n);
     this._olCount = 0;
@@ -89,6 +91,9 @@ export class WatercolorEngine {
       sigmaP: 0.06,     // M1：σ 的颜料密度分量（重湿处更钉）
       sigmaL: 0.03,     // M1：σ 的沿纤维线段纹理分量
       sigmaM: 0.06,     // M2.1：σ 的低频宏观分量（30-60 格波长缺口/半岛，破圆润宏观轮廓）
+      macroCut: 8,      // M2.2：宏观侵蚀最深格数（新湿格边界按宏观噪声迭代蚀除，突破软边宽度限制）
+      macroThresh: 0.72, // M2.2：宏观侵蚀的噪声阈值（>此值才蚀）
+      macroMinWater: 0.55, // M2.3：宏观侵蚀的水量门限（低水细笔触不蚀，防"树干被咬断"）
       hindrance: 0.5,   // M1：阻滞强度（颜料横纤维流速打折 → 方向颗粒/沉积断裂的物理版）
       hindRange: 0.5,   // M1：阻滞随 |u| 上升的平滑区间
       fixRate: 0.5,     // M1：渐变固着率/步（MoXi SIMULATEFIXTURE，替换二值冻结）
@@ -202,9 +207,15 @@ export class WatercolorEngine {
     return s;
   }
 
+  /** M2.2/M2.3 宏观噪声场（σ 钉扎与宏观侵蚀共用）：低频 + 中频混合，轮廓更毛糙（防"圆盘咬口"） */
+  _macroNoise(x, y) {
+    return (fbm2D(x * 0.03 + 5.1, y * 0.03 + 8.7, { octaves: 2, seed: 83 })
+      + 0.45 * fbm2D(x * 0.11 + 1.7, y * 0.11 + 4.3, { octaves: 2, seed: 97 })) / 1.45;
+  }
+
   /** M1 σ 钉扎阈值（MoXi §5.3.3 式9 的落地）：
    *  σ = σ0 + σg·(G−0.5)·2 + σp·min(1, Ptotal·0.5) + σl·(沿纤维线段噪声−0.5)·2
-   *      + σm·(低频宏观噪声−0.5)·2   ← M2.1：宏观缺口/半岛 */
+   *      + σm·(宏观噪声−0.5)·2   ← M2.1：宏观缺口/半岛 */
   _sigmaAt(i) {
     const { G, Tx, Ty } = this.paper;
     const p = this.p;
@@ -213,7 +224,7 @@ export class WatercolorEngine {
     const x = i % this.w, y = (i / this.w) | 0;
     const a = x * Tx[i] + y * Ty[i], b = -x * Ty[i] + y * Tx[i];
     const line = valueNoise2D(a * 0.04 + 2.7, b * 0.35, 61);
-    const mac = fbm2D(x * 0.03 + 5.1, y * 0.03 + 8.7, { octaves: 2, seed: 83 });
+    const mac = this._macroNoise(x, y);
     return p.sigma0 + p.sigmaG * (G[i] - 0.5) * 2 + p.sigmaP * Math.min(1, pt * 0.5)
       + p.sigmaL * (line - 0.5) * 2 + p.sigmaM * (mac - 0.5) * 2;
   }
@@ -229,6 +240,9 @@ export class WatercolorEngine {
     this._qDirty = true;
     const pinBuf = this._pinBuf, pinM = this._pinM;
     let pinCount = 0;
+    const newWet = this._tl; // 本笔新湿格（M2.2 宏观侵蚀用；_tl 阶段间空闲）
+    let newCount = 0;
+    this._om.fill(0);
     let x0 = w, y0 = h, x1 = -1, y1 = -1;
     for (let y = 0; y < h; y++) {
       const row = y * w;
@@ -262,7 +276,9 @@ export class WatercolorEngine {
           Dm[i] += aM * fk;
           Pm[i] += aM * (1 - fk);
           M[i] = 1;
+          newWet[newCount++] = i;
         } else {
+          this._om[i] = 1; // 本笔前已湿（湿接保护用）
           const w0 = W[i];
           W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
           if (w0 <= 0 && W[i] > 0) this._pushActive(i);
@@ -300,6 +316,45 @@ export class WatercolorEngine {
       Dm[i] += aM * fk;
       Pm[i] += aM * (1 - fk);
       M[i] = 1;
+      newWet[newCount++] = i;
+    }
+    // M2.2/M2.3 宏观侵蚀：新湿格边界按宏观噪声迭代蚀除（缺口深度跟随噪声值）
+    //  M2.3 保护：低水笔触不蚀；与旧湿格相邻处不蚀（湿接白缝）
+    //  M2.4：湿邻保护扩到 8 邻域；阈值加高频抖动（消直角方冲）；深度随笔触尺寸自适应
+    if (p.macroCut > 0 && water >= p.macroMinWater) {
+      const minDim = Math.min(x1 - x0, y1 - y0);
+      const cutN = Math.min(p.macroCut, Math.max(4, Math.round(0.11 * minDim)));
+      for (let iter = 0; iter < cutN; iter++) {
+        let cutAny = false;
+        for (let t = 0; t < newCount; t++) {
+          const i = newWet[t];
+          if (!M[i]) continue;
+          const x = i % w, y = (i / w) | 0;
+          const isEdge = (x > 0 && !M[i - 1]) || (x < w - 1 && !M[i + 1])
+            || (y > 0 && !M[i - w]) || (y < h - 1 && !M[i + w]);
+          if (!isEdge) continue;
+          // 8 邻域旧湿保护
+          let nearOld = false;
+          for (let dy = -1; dy <= 1 && !nearOld; dy++) {
+            for (let dx = -1; dx <= 1 && !nearOld; dx++) {
+              if (dx === 0 && dy === 0) continue;
+              const nx = x + dx, ny = y + dy;
+              if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+              if (this._om[ny * w + nx]) nearOld = true;
+            }
+          }
+          if (nearOld) continue;
+          if (this._macroNoise(x, y) > p.macroThresh) {
+            W[i] = 0;
+            for (let c = 0; c < ch; c++) { P[c][i] = 0; D[c][i] = 0; }
+            Pm[i] = 0; Dm[i] = 0;
+            M[i] = 0;
+            this._removeActive(i);
+            cutAny = true;
+          }
+        }
+        if (!cutAny) break;
+      }
     }
     if (x1 >= x0) {
       if (!bbox.valid) { bbox.x0 = x0; bbox.y0 = y0; bbox.x1 = x1; bbox.y1 = y1; bbox.valid = true; }
@@ -386,7 +441,7 @@ export class WatercolorEngine {
     mean /= N;
     const s = radius / mean;
     for (let j = 0; j < N; j++) R[j] *= s;
-    return R;
+    return { prof: R, noise: nArr }; // M2.2：噪声场一并返回，供 rim 亮度/宽度调制
   }
 
   /** 清水滴回流开花算子（显式搬运版，通道泛化）：
@@ -400,7 +455,7 @@ export class WatercolorEngine {
       if (this._bloomCount === undefined) this._bloomCount = 0;
       seed = this._bloomCount++ * 13.7 + radius * 0.31;
     }
-    const prof = this._bloomProfile(radius, seed);
+    const { prof, noise: profNoise } = this._bloomProfile(radius, seed);
     const N = prof.length;
     const profAt = (ang) => {
       let t = ang % (Math.PI * 2);
@@ -408,6 +463,13 @@ export class WatercolorEngine {
       t = (t / (Math.PI * 2)) * N;
       const j0 = t | 0, j1 = (j0 + 1) % N, f = t - j0;
       return prof[j0] * (1 - f) + prof[j1] * f;
+    };
+    const noiseAt = (ang) => {
+      let t = ang % (Math.PI * 2);
+      if (t < 0) t += Math.PI * 2;
+      t = (t / (Math.PI * 2)) * N;
+      const j0 = t | 0, j1 = (j0 + 1) % N, f = t - j0;
+      return profNoise[j0] * (1 - f) + profNoise[j1] * f;
     };
     for (let c = 0; c < ch; c++) _sP[c].set(P[c]);
     const R = radius + strength + 4;
@@ -453,13 +515,14 @@ export class WatercolorEngine {
         const jit = (F[(x + 17) % w + ((y + 13) % h) * w] - 0.5) * radius * 0.28;
         const destR = Rθ * (1 + 0.08 * nz) + jit;
         const petal = 0.55 + 0.45 * Math.min(1, Math.max(0, (Rθ / radius - 1) / 0.35)); // 瓣尖溅射更浓
-        const bandW = 1.5 + 2.5 * (0.5 + 0.5 * nz);
+        const rim = 0.7 + 0.5 * noiseAt(ang); // M2.2：环亮度沿角度缓变，消"均匀描边感"
+        const bandW = (1.5 + 2.5 * (0.5 + 0.5 * nz)) * (0.8 + 0.4 * noiseAt(ang));
         const splat = (rr, frac) => {
           let fx = cx + ca * rr, fy = cy + sa * rr;
           fx = fx < 0 ? 0 : fx > w - 1.001 ? w - 1.001 : fx;
           fy = fy < 0 ? 0 : fy > h - 1.001 ? h - 1.001 : fy;
           const x0f = fx | 0, y0f = fy | 0, tx = fx - x0f, ty = fy - y0f;
-          const f = frac * petal;
+          const f = frac * petal * rim;
           const j00 = y0f * w + x0f;
           const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
           for (let c = 0; c < ch; c++) {
@@ -494,7 +557,7 @@ export class WatercolorEngine {
         const t = Math.abs(d - Rθ);
         if (t < 4.0) {
           const wgt = (1 - t / 4.0) * (0.55 + 0.9 * (F[i] - 0.5));
-          const boost = 0.5 * wgt;
+          const boost = 0.5 * wgt * (0.7 + 0.5 * noiseAt(ang)); // M2.2：环亮度随角度缓变
           for (let c = 0; c < ch; c++) {
             D[c][i] += (D[c][i] + P[c][i]) * boost;
             P[c][i] *= 1 - boost;
@@ -525,8 +588,11 @@ export class WatercolorEngine {
         const ang = Math.atan2(dy, dx);
         const Rθ = profAt(ang);
         if (d < Rθ * 0.75) {
-          for (let c = 0; c < ch; c++) { P[c][i] *= 0.42; D[c][i] *= 0.55; }
-          Pm[i] *= 0.42; Dm[i] *= 0.55;
+          const t = d / (Rθ * 0.75);
+          const soft = t < 0.8 ? 1 : (1 - t) / 0.2; // M2.3：外圈 20% 线性淡出，消内白环硬边
+          const kP = 1 - 0.58 * soft, kD = 1 - 0.45 * soft;
+          for (let c = 0; c < ch; c++) { P[c][i] *= kP; D[c][i] *= kD; }
+          Pm[i] *= kP; Dm[i] *= kD;
         }
       }
     }
