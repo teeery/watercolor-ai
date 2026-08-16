@@ -332,9 +332,26 @@ export class StrokePainter {
       granulation: pig.granulation ?? 0.5,
       staining: pig.staining ?? 0.5,
     });
+    // 混色提供者:每桶按 tipShare 混合 belly 色与 tip 色(charging);
+    // 无名颜色时用 defaultBasis 兜底(与 legacy 一致)。
+    const cs = this.colorSystem;
+    const bellyRGB = cs && cs.pigmentRGB ? cs.pigmentRGB(pig) : hexToRgb01(pig.color);
+    const tipPig = stroke.load?.tip ?? null;
+    const tipRGB = tipPig ? (cs && cs.pigmentRGB ? cs.pigmentRGB(tipPig) : hexToRgb01(tipPig.color)) : null;
+    const basis = (prov, tipFrac) => {
+      if (prov.tipRGB && tipFrac > 1e-6 && tipFrac < 0.9999) {
+        const [br, bg, bb] = prov.bellyRGB, [tr, tg, tb] = prov.tipRGB;
+        const mix = [br + (tr - br) * tipFrac, bg + (tg - bg) * tipFrac, bb + (tb - bb) * tipFrac];
+        return { K: defaultBasis({ color: mix }), granulation: pig.granulation ?? 0.5, staining: pig.staining ?? 0.5 };
+      }
+      const usePig = tipFrac > 0.5 && prov.tipRGB ? (stroke.load?.tip ?? pig) : pig;
+      const K2 = cs ? cs.pigmentBasis(usePig) : defaultBasis(usePig);
+      return { K: K2, granulation: pig.granulation ?? 0.5, staining: pig.staining ?? 0.5 };
+    };
     const state = new BrushState(eng, stroke, {
       painterSeed: this.seed ?? 1,
       strokeIndex: this._brushSeq++,
+      pigment: { bellyRGB, tipRGB, basis },
     });
     state.run();
     this.lastBrushState = state;
