@@ -1,0 +1,1305 @@
+
+===== PAGE 1 =====
+Art-directed watercolor stylization of 3D animations in real-time $
+S. E. Montesdeoca, H. S. Seah, H.-M. Rall, D. Benvenuti
+Nanyang Technological University, Singapore
+Abstract
+This paper presents a direct stylization system to render 3D animated geometry as watercolor painted animation. Featuring low-
+level art-direction in real-time, our approach focuses on letting users paint custom stylization parameters in the 3D scene. These
+painted parameters drive watercolor eﬀects in object-space, managing localized control and emulating the characteristic appearance
+of traditional watercolor. For this purpose, the parameters alter the object-space geometric representations and are rasterized, to
+coherently control and enhance further image-space e ﬀects. The watercolor e ﬀects are simulated through improved and novel
+algorithms to recreate hand tremors, pigment turbulence, color bleeding, edge darkening, paper distortion and granulation. All
+these represent essential characteristic e ﬀects of traditional watercolor. The proposed direct stylization system scales well with
+scene complexity, can be implemented in most rendering pipelines and can be adapted to simulate a wide range of watercolor
+looks. The simulation is compared to previous approaches and is evaluated through a user study, involving professional CG artists
+spending over 50 hours stylizing their own assets and sharing their feedback about the watercolor stylization, the direct stylization
+system and their needs as artists using Non-photorealistic Rendering (NPR).
+Keywords: Watercolor, NPR, Expressive Rendering, Real-Time, Direct Stylization, Object-space
+1. Introduction
+The aesthetic quality of watercolor paintings and its char-
+acteristic eﬀects make watercolor a unique traditional medium,
+which is extensively used for multiple coloring purposes. From
+early topological maps to fashion design illustrations and ﬁne
+art – as Leslie Dutcher describes it: ”watercolor paint has proven
+to be as elegant and academic as its counterpart [oil] while
+retaining its own ebullience and congeniality” [1]. However,
+while regarded as the traditional medium by itself is, it is rarely
+seen in animated form. The reason for this is arguably the ac-
+companying diﬃculty to control the medium. Even acclaimed
+watercolor artists admit its capricious nature, which makes it
+diﬃcult to master [2, 3, 4]. This peculiarity, together with the
+need for at least 10-12 frames per second to entail a sense of
+motion [5], makes traditional watercolor animation a complex
+and laborious endeavor to pursue.
+Various systems to digitally recreate watercolor have been
+proposed, which facilitate the production of watercolor paint-
+ings and animations. These systems can be organized into three
+main categories according to their respective input data, namely:
+stroke-space, image-space and object-space. Each category has
+its own specialized application, however, they often tend to in-
+terrelate in order to enhance the ﬁnal watercolor simulation.
+The system proposed in this paper is conceived to render 3D
+animated geometry as watercolor simulated animations, which
+falls into the third category, an object-space system. However,
+$© 2017. This manuscript version is licensed under the Creative Commons
+c b n d 4.0 license. Journal publication DOI: 10.1016/j.cag.2017.03.002.
+Email address: santiago002@e.ntu.edu.sg (S. E. Montesdeoca)
+Figure 1: Computer generated using our system (left) and hand-painted (right)
+it contributes and di ﬀerentiates itself from other object-space
+systems by two key elements.
+First, the proposed system features a direct stylization pipe-
+line that is art-directed in object-space by the end user, who
+can paint the desired simulated e ﬀects with real-time perfor-
+mance. This enables immediate and coherent localized control
+over the watercolor look. And second, the proposed system ex-
+tends and improves the palette of simulated watercolor e ﬀects.
+These simulated eﬀects can be incorporated into most conven-
+tional rendering pipelines and feature the following:
+• Object-space shader with a watercolor reﬂectance model,
+art-directed pigment turbulence, hand tremors and custom
+control features for further image-space ﬁltering.
+• Color bleeding through a hybrid solution involving object-
+and image-space processing (art-directed).
+• Edge darkening with gradual pigment accumulation through
+a diﬀerence of Gaussian feature enhancement (art-directed).
+• Surface distortion through UV displacement following sur-
+face normal inclinations (art-directed).
+• Split surface granulation with dedicated control over paper
+roughness and pigment accumulation at the valleys of the
+paper (art-directed).
+Preprint submitted to Computers & Graphics April 27, 2017
+===== PAGE 2 =====
+Rendered results can be found throughout the paper and an
+implementation in Autodesk Maya 2016 Ext. 2 for Windows
+is included in the Appendix A - Supplementary Material. For
+animated outcomes, please refer to the demonstration video. An
+abstracted pipeline schematic can be found in Figure 4.
+This paper embodies an extended journal version of the
+NPAR 2016 paper by Montesdeoca et al. [6]. Compared to the
+original version, the major additional contributions are three-
+fold:
+• A discussion on real-time art direction in object-space and
+the immediate beneﬁts of direct stylization pipelines, com-
+pared to oﬀ-line decoupled stylization pipelines.
+• A new approach towards color bleeding using a 4-dimensional
+joint-bilateral bleeding algorithm.
+• A user study involving professional CG artists stylizing their
+own assets using our system, providing valuable feedback,
+insight on their speciﬁc needs and reinforcing this work.
+In the remainder of this paper, related work will be intro-
+duced in Section 2. The proposed system with its individual
+contributions is presented in Section 3, the results are presented
+and discussed in Section 4 and evaluated in Section 5. The pa-
+per concludes with Section 6, proposing opportunities for future
+work.
+2. Related Work
+Recreating traditional painting media has been one of the
+main challenges of non-photorealistic rendering since its incep-
+tion. Remarkable examples came early on through physical ap-
+proximation of the medium which analyzed and calculated the
+spread of pigment in simulated paper [7, 8].
+Stroke-space simulation systems especially beneﬁted from
+accurately modeled physical simulations towards watercolor.
+Each brush-stroke can be intricately controlled to achieve most
+desired eﬀects and a characteristic watercolor look [9, 10, 11].
+Nonetheless, it can be di ﬃcult for an artist to understand and
+interpret the physical attributes, which these simulations of-
+fer. Alternatives can be found through procedural and exam-
+ple based approaches [12, 13]. Stroke-space watercolor simu-
+lations provide extensive artistic control over digital paintings.
+However, in animation, it still presents itself as a complex and
+laborious alternative where each frame requires to be hand-
+painted.
+For the proposed watercolor system, stroke-space simula-
+tions can be used to paint watercolor-looking textures, which
+are then mapped onto 3D objects. However, these textures
+would remain static and are prone to perspective and geometric
+distortion without further processing. Image-space and object-
+space simulation techniques are better suited for our approach
+and are presented next.
+2.1. Image-space Simulation
+A traditional watercolor painting is a composition of a va-
+riety of complex interactions of pigment and water, layered to-
+gether to create a body of work which interacts and speaks for
+itself with unique attributes, all chosen by the artist. Image-
+space simulation attempts to recreate this interaction and con-
+siders the image as a whole – ﬁnding and simulating charac-
+teristic eﬀects and features which the artist might have chosen
+with the given subject.
+Early attempts used image processing algorithms to auto-
+matically convert raster images to watercolor simulated paint-
+ings. Johan et al. [14] focused on recreating watercolor brush
+strokes by following a vector ﬁeld created along the boundaries
+of the image elements. Bousseau et al. [15] focused instead
+on recreating the wet-on-dry (lavis) technique using a series of
+ﬁlters. Characteristic eﬀects such as pigment turbulent accumu-
+lation, dispersion, edge darkening, paper surface structure and
+its distortion on the painted subject were considered. However,
+both of these methods process the image as a whole, limiting
+control of the outcome to variables and predeﬁned rules. More
+recent work considers this limitation and involves computer vi-
+sion algorithms to automatically locate the area which artists
+might emphasize [16, 17]. The system proposed by Wang et
+al. [16] implements saliency detection to locate the areas of
+interest and stylize them diﬀerently. Additionally, the input im-
+age is colorized according to colors found on a training set of
+real watercolor paintings. The palette of simulated watercolor
+eﬀects was also extended to include color bleeding found on
+wet-in-wet techniques and hand tremors, which are common in
+most watercolor paintings. However, the previously introduced
+image-space simulation systems rely heavily on image segmen-
+tation to extract detail from the input data. Segmentation is ex-
+pensive to compute and over time introduces signiﬁcant ﬂick-
+ering issues, which are not a desirable e ﬀect in watercolor an-
+imations. Image-time-space simulation of watercolor has been
+proposed to address this issue by Bousseau et al. [18] but it
+still produces unnatural artifacts and is limited in the amount of
+eﬀects it can simulate.
+The use of neural networks to stylize images [19] is also
+gaining attention within image-space stylization approaches and
+watercolor simulation. They feature high-level control and inﬁ-
+nite possibilities, depending on the trained neural network and
+desired source image-style. Through this, users can take advan-
+tage of an automated stylization, which can produce believable
+watercolorized results. Unfortunately, images stylized through
+neural networks are expensive to compute, diﬃcult to art-direct
+and present unexpected and undesired artifacts, especially in
+animated form.
+Finally, example-based approaches have been proposed to
+simulate watercolor in animation using image analogies. These
+image-space approaches have also been successfully applied in
+object-space rendered imagery, taking advantage from the addi-
+tional object-space information for better visual results. Fiˇser et
+al. [20] proposed a system to simulate noise from static water-
+color textures placed in image-space and object-space. B ´enard
+et al. [21] implements image analogies to interpolate painted
+keyframes done by artists, with the help of velocity and orienta-
+tion ﬁelds gathered from object-space data. This is probably the
+only image-space system that could embed watercolor styliza-
+tion with art-direction, in which the user has localized control
+over the ﬁnal look. However, the stylization will depend on the
+2
+===== PAGE 3 =====
+previous stroke-space watercolor simulation and textures are re-
+quired to be painted every few frames. This makes the approach
+unsuitable for interactive applications where the point of view is
+not previously deﬁned, such as games and virtual reality. Fi ˇser
+et al. [22] takes advantage of image analogies to extend stylized
+shading from a single painted reference into a 3D model. Their
+system produces believable interactive results for simple and
+single imagery, but presents artifacts and temporal coherence
+problems when animated.
+2.2. Object-space Simulation
+Object-space simulation approaches watercolor simulation
+and its characteristic eﬀects in a more localized manner, as each
+3D object can be individually deﬁned and stylized. However,
+most object-space simulations are conjugated with image-space
+simulations once rendered, to enhance the outcome. The syn-
+ergy between image-space and object-space approaches man-
+ages to create complex intertwined systems that can potentially
+oﬀer extensive control and stylization possibilities.
+The system proposed by Lum and Ma [23] was one of the
+ﬁrst to simulate watercolor e ﬀects in object-space by incor-
+porating pigment turbulence through the use of ﬁltered noise
+along the curvature of the geometry. Burgess et al. [24] ex-
+tends this work by simplifying the noise ﬁlter used for pigment
+turbulence. In addition, object identiﬁers and depth informa-
+tion were used to simulate darkened edges, together with ad-
+ditional noise to emulate edge distortion. However, results of
+these initial watercolor simulation systems oﬀer limited control
+and resemblance to the traditional counterpart.
+Lei and Chang [25] proposed a programmable vertex and
+fragment shader system which included a custom reﬂectance
+model based on a simulated color ramp. Image-space simula-
+tions, such as edge darkening through edge detection and paper
+eﬀects to recreate granulation and distortion, were performed
+afterwards. Luft and Deussen [26] proposed a complex layered
+system where each object with a common identiﬁer is rendered
+in multiple passes and each pass is processed by image-space
+simulations to later be composed into a ﬁnal image – together
+with all other objects. Further particles are also attached to the
+geometry in the case of trees to emulate leaves. The system im-
+proves on art-directed control – as each object group gets sim-
+ulated in image-space independently – and improves on edge
+darkening e ﬀects. However, the system does not scale well
+with scene complexity and still misses fundamental character-
+istic eﬀects like pigment turbulence. Finally, Luft et al. [27]
+implemented and integrated watercolor stylization into a CAD
+software, proposing a tone-based lighting model and stylistic
+means of abstraction. The stylization relies extensively on spa-
+tial geometric relationship data, modulating their look through
+the use of an ambient occlusion pass. However, the system is
+not versatile and limited to a speciﬁc watercolorized look.
+In general, existing object-space watercolor simulation ap-
+proaches feature rudimentary art-direction and a limited repro-
+duction of characteristic e ﬀects. The work presented in this
+paper contributes to the ﬁeld by improving on these two key el-
+ements. A direct stylization pipeline is proposed, which enables
+immediate art-direction, scales well with scene complexity, ex-
+tends the reproduction of characteristic watercolor e ﬀects and
+can be implemented in most rendering pipelines.
+3. Real-time Art-directed Watercolor System
+The aspiration of our system is to create a versatile and user-
+friendly object-space watercolor simulation tool, that not only
+focuses on modeling the characteristic e ﬀects of watercolor,
+but also considers real-time performance and art-direction as
+a necessary requirement. An immediate feedback is crucial as
+it could drastically reduce the required time for art-direction,
+facilitating and motivating the creative ﬂow of the users.
+Common stylization pipelines for ﬁlm and television are
+based on a two-step process, see Figure 2. First, the required
+source images are rendered o ﬀ-line from a 3D application, in-
+cluding all necessary stylization intermediates such as custom
+masks and additional rasterized object-space data. These im-
+ages are then gathered and processed in a compositing software
+to form the ﬁnal stylized image. This decoupled creative pro-
+cess, while ﬂexible and modular, slows down and even hinders
+art-direction. In stylized rendering, art-directed changes tend to
+occur often, but these changes can only be determined once the
+stylized image is seen and evaluated. If changes are required,
+some source images usually need to be altered, forcing to return
+up along the pipeline, back to the object-space application. In
+the 3D application, the changes are made and the new images
+are re-rendered and reconﬁgured back in compositing. Unfortu-
+nately, making stylization changes in the 3D application, with-
+out immediately viewing the end result, is not intuitive. This
+makes the process diﬃcult and prone to several repetitions, un-
+til the ﬁnal stylization is achieved. Additionally, the workﬂow
+at each stage involves diﬀerent artists who might also have dif-
+ferent visions and interpretations of the ﬁnal desired stylization.
+Figure 2: Decoupled Stylization Pipeline
+Taking inspiration from real-time technologies and game-
+engine rendering pipelines, we propose a more direct object-
+space stylization pipeline, which facilitates art-direction through
+immediate visual feedback, see Figure 3. This pipeline, at-
+tached to a digital content creation software, enables the user to
+see the stylization results in real-time at every step – from asset
+creation, to the ﬁnal art-directed tweaks of the resulting image.
+This dramatically increases the stylization workﬂow and helps
+artists focus directly on the desired result. The stylized image
+can be taken as is, however, the source images created inter-
+nally can potentially be rendered o ﬀ-line, taking advantage of
+ray traced ﬁdelity. This way, the stylization is art-directed in
+real-time through the direct stylization pipeline, but the ﬁnal
+oﬀ-line render can be processed through the decoupled styliza-
+tion pipeline, enabling a compositing workﬂow with a feature-
+rich, art-directed and stylized image.
+3
+===== PAGE 4 =====
+Figure 3: Direct Stylization Pipeline
+Following next, the direct watercolor stylization pipeline
+will be presented. First, our implementation on art-directed
+object-space control over the watercolor stylization is explained
+(Section 3.1). Then, the system portrayed in Figure 4 is de-
+constructed and the modeled e ﬀects presented. The supported
+eﬀects include hand tremors, a watercolor reﬂectance model,
+pigment turbulence, color bleeding (wet-in-wet), edge darken-
+ing and paper eﬀects such as distortion and granulation.
+3.1. Art-direction
+Artists will usually not paint an entire painting with an even
+treatment. They will emphasize, abstract, and add custom ef-
+fects locally, following their own style and expression. This is
+especially true with the aesthetic quality of watercolors, which
+permits a wide variety of expressions through their volatile ef-
+fects. To control and drive these eﬀects, low-level control over
+the stylization is needed. This control should also be embedded
+in object-space, so as to guarantee a coherent placement un-
+der camera motion. To this end, we rasterize parameter masks
+from object-space data. Masking is commonly used for image-
+space manipulation and compositing, but recent image-space
+stylization systems have also began adopting them as simula-
+tion drivers [28, 29]. However, our mask is not created from
+painted pixels, but by vertices (points) in 3D space that are ras-
+terized into masks. Alex Harvill [30] has also implemented this
+idea through a decoupled stylization pipeline, rendering a mask
+of weighted points to control a moving 2D illustration. From
+custom texture maps to point weights and vertex colors, these
+scalar ﬁeld data can be used in the form of intermediate render
+passes containing masking parameters for further image-space
+stylization.
+In our system, we have chosen the use of vertex colors to
+create parameter masks for multiple reasons. They provide four
+parameter control channels (RGBA), are natively supported by
+vertex shaders (compute fast), can be animated for further tem-
+poral control and are supported by most 3D applications. For
+the implementation presented in this paper, we have assigned
+the control of eﬀects to the following channels:
+• Red - Controls paper distortion
+• Green - Controls paper granulation
+• Blue - Controls edge darkening and color bleeding
+• Alpha - Controls pigment turbulence and pigment fading
+Deconstructed examples of the art-directed inﬂuences and
+the dramatic change it has over the 3D rendered outcome can
+be seen in Figures 5 and 6. Following the schematic in Figure
+4, these rendered images have undergone stylization through a
+direct stylization pipeline, which will be introduced next.
+Figure 4: System schematic of the rendering pipeline. Dark gray elements
+represent the input data, gray elements represent the diﬀerent processing stages
+and the bracketed elements represent the computed images in the frame buﬀers.
+3.2. Controlled Object-space E ﬀects
+The ﬁrst step in the direct stylization pipeline consists of
+processing the application data at the vertex shader stage. At
+this stage, vertices are usually just transformed from object space
+to their respective projection space. However, this stage can
+also serve to displace existing vertices to help future styliza-
+tion. Our simulation involves two distinct vertex displacements,
+which aid in the recreation of the wet-in-wet technique and
+hand tremors.
+4
+===== PAGE 5 =====
+3D geometry Rendered Geometry Watercolor Simulation Art-directed Simulation
+Figure 5: Breakdown of a watercolor stylized character. Henry © Oculus Story Studio
+Wet-in-Wet and Hand Tremor Deformation
+The Wet-in-Wet technique, often referred in this paper as
+color bleeding, is a technique where pigment is applied to an
+already wet surface, to allow the color to spread (bleed) out-
+side of its placement area. For this purpose, the vertices, which
+contain embedded bleeding parameters in their vertex colors,
+are translated along their normal vectors. This is done to pull
+the vertices outside of their original geometry, simulating the
+pigment bleeding outside its contained subject area.
+Hand tremors are an essential characteristic of hand painted
+media as acknowledged by Wang et al. [16]. They are observ-
+able in the small irregularities found mostly on the edges of a
+painting and are caused by involuntary ﬂuctuations in the hu-
+man nervous system. These ﬂuctuations can be simulated by
+minimally oﬀsetting the vertices from their original positions.
+For best results, the vertices are displaced once they have been
+transformed to their projection space. This way, the o ﬀset will
+distribute evenly and will not be a ﬀected by any previous per-
+spective projection. We chose a sinusoidal noise function as it
+can additionally simulate watery deformation, if desired.
+Vo = sin(T× s + V× f )× t× Pp (1)
+The vertex oﬀset Vo is modulated by the original vertex po-
+sition V, time T and relative pixel size of the projection space
+Pp. Adjustment variables for speed s, frequency f and tremor
+amount t can be changed according to the desired tremor eﬀect.
+However, hand tremors occur mostly in edges where precise
+control is required by the artist. Therefore, the vertex tremor
+Vt is modulated by the dot product of the view direction ⃗V and
+vertex normal ⃗N.
+Vt = V + Vo(1− a(⃗V· ⃗N)) (2)
+Once the vertices have been transformed and displaced per
+the desired stylization, they are sent down the pipeline towards
+the pixel shader stage, which, in our implementation, renders
+to multiple render targets (MRT), creating the color and control
+images.
+Watercolor Reﬂectance Model and Pigment Turbulence
+The characteristic translucency and turbulence found in wa-
+tercolors play a pivotal role in the way motifs are colored, but is
+not found in common shading primitives. Lei and Chang [25]
+proposed the use of a one-dimensional color ramp to deﬁne re-
+ﬂected colors throughout the surface. However, this presents
+problems once the user intends to use texture maps. Therefore,
+we propose a custom watercolor reﬂectance model extending
+common shading primitives. The shading model features wa-
+tercolor characteristics such as pigment dilution, cangiante il-
+lumination (change in the highlights to a brighter hue) and art-
+directed pigment turbulence.
+Figure 6: Top to bottom: color image rendered without stylization;
+control image showing the rasterized control masks [vertex colors]
+(Left: RGB channels — Right: Alpha channel); art-directed water-
+color simulation.
+5
+===== PAGE 6 =====
+To simulate dilution, we ﬁrst calculate the area of eﬀect DA
+by modulating the dot product of the fragment normal ⃗N and
+the light direction⃗L, with a dilute area variable dA∈ (0, 1].
+DA =
+⃗L· ⃗N + (dA− 1)
+dA
+(3)
+With the computed area, the surface color may undergo the
+changes of a cangiante illumination, which shifts the hue of the
+surface away from a primary color. Through color theory in art
+and human perception, it is known that highlights do not nec-
+essarily shift perceptively towards white. The same rules apply
+to shadows which also do not necessarily shift perceptively to-
+wards black [31]. To achieve this, the cangiante color Cc is
+calculated by adding the dilute area multiplied by the cangiante
+variable c.
+Cc = C + (DA× c) (4)
+Once the hue at the highlight has shifted, the dilution is per-
+formed by linearly interpolating the cangiante color towards the
+paper color Cp through the dilution variable d. Results of the
+shader with di ﬀerent dilution attributes are shown in Figure 7
+and the ﬁnal interpolation is shown below.
+Cd = d× DA(Cp− Cc) + Cc (5)
+c = 0, d = 0
+ c = 0.6, d = 0
+ c = 0, d = 1
+ c = 0.7, d = 0.8
+Figure 7: Watercolor reﬂectance model with di ﬀerent cangiante and
+dilution attributes (dA = 1; C = (194, 94, 0))
+Pigment turbulence is a low-frequency noise, which hap-
+pens when the pigment settles unevenly on the ﬂat surface of
+the paper, creating areas of varying pigment density. This ef-
+fect is characteristic for watercolors – due to the ﬂuidity of
+the water – and is incorporated within the object-space shader.
+Image-space simulations of pigment turbulence have been im-
+plemented before, however they are overlaid across the entire
+image. Therefore, it does not distinguish between di ﬀerent
+painted areas and present ”shower-door” artifacts.
+Without turbulence
+ Painted turbulence
+ With turbulence
+Figure 8: Shader turbulence breakdown (C = (169, 115, 235)).
+In our approach, we let the user art-direct the pigment den-
+sity variations to suit the desired amount and pattern. This is
+achieved by letting the user directly paint the parameters on ob-
+jects within the 3D application – Ctrl∈ [0, 1]. The density pa-
+rameters can also be generated by automatically assigning noise
+values into the vertex control channel. We ﬁnd that this solu-
+tion helps to give initial density variations, but art-direction is
+required to reﬁne the result. An art-directed rendered example
+with diﬀerent pigment densities can be seen in Figure 8. The
+accumulation of pigments is simulated by altering the source
+colors through the color transmittance modiﬁcation model, pro-
+posed by Bousseau et al. [15]. In this model, the observed color
+is the result of the exponential attenuation of reﬂected light,
+which has been transmitted through the density of the pigment.
+We additionally use the same parameters in the control chan-
+nel to fade the rendered color C towards the paper color Cp.
+This is a common stylistic choice found in watercolor illustra-
+tions to attract attention to a desired subject. For this purpose,
+the painter avoids unnecessary scene elements by simply fading
+the color and leaving the paper as is. An example of this e ﬀect
+can be seen in Figure 5 on the tablecloth. Both algorithms can
+be found in the equation below.
+Ct =
+
+C3−(Ctrl×4) if Ctrl < 0.5
+(Ctrl− 0.5)× 2(Cp− C) + C if Ctrl≥ 0.5 (6)
+To enhance the look of the shader, we support basic shading
+requirements such as the ability to use texture, normal and spec-
+ular maps. Additionally, painterly reﬂectance attributes were
+also implemented, such as a custom diﬀuse shading factor, cus-
+tom shade color, shade wrap, hard highlights and atmospheric
+fade. However, the deconstruction of these features have been
+omitted as they are not necessary characteristics of watercolors.
+After the watercolor reﬂectance is calculated, the pixel shader
+shader also interpolates the vertex colors and renders to two dif-
+ferent render targets. The watercolor reﬂectance is saved as a
+color image and the vertex colors are saved as a control image.
+These two images, stored in the frame bu ﬀers, are used exten-
+sively down the pipeline by image-space simulations, to obtain
+the ﬁnal watercolor image.
+3.3. Controlled Image-space E ﬀects
+Before entering the image-space stylization stage, three in-
+termediate images need to be created. The ﬁrst image involves
+the surface textures. At this stage of the pipeline, a paper tex-
+ture and its respective normal map are loaded into a single im-
+age buﬀer. The red and green channels contain the surface in-
+clinations from the normal map, while the blue channel stores
+a heightmap of the surface texture. The other two intermedi-
+ate images are created at the MRT blur fragment shader stage.
+At this stage, two diﬀerent blurring algorithms are run over the
+rendered color image, generating intermediates for edge dark-
+ening and color bleeding e ﬀects. To amplify the ﬁltering on
+minimal computational cost, the resolution of these intermedi-
+ates is half the size of the stylized output resolution, and linearly
+6
+===== PAGE 7 =====
+interpolated through a texture sampler at later stages. Further
+optimization includes the use of separable kernels.
+The ﬁrst blurring algorithm involves simple Gaussian blur-
+ring operations, convolving the equivalent of a 5x5 Gaussian
+kernel (σ = 1). The resulting blurred intermediate image is
+used to simulate edge darkening. The second blurring opera-
+tion involves a 4-dimensional joint-bilateral ﬁltering algorithm
+to simulate color bleeding, which is explained next.
+Color Bleeding
+At the beginning of Section 3.2, vertices were pulled out-
+side their original geometry following the user painted bleed-
+ing parameters, altering the shape of the model. The approach
+implemented in the previous version of this paper [6] then con-
+volved a 21x21 Gaussian kernel over the entire color image and
+blended/masked the resulting low-pass image with the color im-
+age – at the assigned bled sections (e.g. blue channel in Figures
+9a and 9d). While simple and straightforward to implement,
+this na¨ıve approach has two fundamental problem cases: (1)
+when objects in the background are bleeding, but are obstructed
+by a non-bled object in the foreground and (2) when objects in
+the foreground are bleeding at their silhouettes over a non-bled
+background. These are illustrated in Figure 9
+(a) Bleeding params.
+ (b) Intensity leak
+ (c) Desired bleeding
+(d) Bleeding params.
+ (e) Clipped bleeding
+ (f) Desired bleeding
+Figure 9: Images (a) and (d) are the painted bleeding parameters;
+(b) and (e) are the results from the previous na ¨ıve bleeding approach;
+(c) and (f) are results using the new bleeding algorithm
+The ﬁrst problem case presents itself as an intensity leak,
+which was caused as bled pixels were inﬂuenced by all neigh-
+boring colors, as shown in Figure 9b. In this example, the black
+line at the foreground has not been given any bleeding param-
+eters (see Figure 9a) and should, therefore, not be considered
+when something at the background is bleeding (the bleeding is
+occluded). However, the previous na¨ıve blurring approach con-
+sidered the entire image equally and did not respect di ﬀerent
+bleeding parameters or depths. The second problem presents it-
+self as clipped bleeding at the silhouettes, which was caused as
+the rasterized bleeding parameters abruptly mask the bled im-
+age, as shown in Figure 9e. In this example, the spikes are bled
+according to the bleeding parameters (see Figure 9d), but are
+constrained by the parameter edge (i.e. the bleeding does not
+ﬂow from the spikes into the background color). This clipping
+would only be desired, if the bleeding mask was obstructed by
+a non-bled object at the foreground, as in the previously elab-
+orated case. However, when the object at the foreground is the
+one bleeding, it should spread the color into objects found at the
+background. The previous na¨ıve bleeding approach does not ex-
+pand the parameter mask to account for this bleeding behavior.
+Figures 9c and 9f show the desired outcome of the elaborated
+problems. These results have been rendered by the new color
+bleeding approach, which is featured next.
+A 4D joint-bilateral ﬁltering algorithm was derived to in-
+clude and solve these problem cases, considering the depth and
+control values, in addition to the two spatial dimensions x and
+y. The bilateral ﬁltering algorithm, coined by Tomasi and Man-
+duchi [32], is therefore adapted to blur the image, while re-
+specting depth and bleeding control di ﬀerences/edges to solve
+the previously stated problem cases. To this purpose, two rules
+are followed:
+• Bled pixels should not leak from un-bled foreground pixels
+• Bled pixels should bleed into/from un-bled background pixels
+Algorithm 1 Joint-bilateral color bleeding (two-pass)
+Input: color image I, depth image Z, control image mask
+C, one dimensional Gaussian normalized kernel weights W
+(size = 21,σ = 20) and depth threshold T
+Output: Bled image B, control image mask C
+for all pixel I(x, y) do
+2: for i∈ [-10 : 10] do
+// Check if source or destination pixels are bled
+4: if ((C(x, y)> 0) or (C(x + i, y)> 0) then
+// Initialize bleed and depth queries
+6: bleed = False
+sourceBehind = False
+8: // Check if source pixel is behind
+if (Z(x, y)− T)> Z(x + i, y) then
+10: sourceBehind = True
+// Check bleeding cases
+12: if C(x + i, y)> 0 and sourceBehind then
+bleed = True
+14: else if C(x, y)> 0 and not sourceBehind then
+bleed = True
+16: // Bleed colors
+if bleed then
+18: // Add weighted destination color
+B(x, y) = B(x, y) + I(x + i, y)× W[i + 10]
+20: else
+// Add weighted source color
+22: B(x, y) = B(x, y) + I(x, y)× W[i + 10]
+else
+24: // Add weighted source color
+B(x, y) = B(x, y) + I(x, y)× W[i + 10]
+26: //Expand control mask
+Modify C(x, y) as bled, if bleeding took place
+Compute another pass with a vertical kernel using the modiﬁed
+control image mask, which includes the inﬂuences of previous
+horizontally bled pixels.
+7
+===== PAGE 8 =====
+This reasoning approaches a layered application of tradi-
+tional watercolors, in which a wet-in-wet application of a fore-
+ground object will bleed into the background, whereas a wet-
+on-dry application of a foreground object should not bleed into
+a previously bled layer underneath. A pseudocode of the pro-
+posed algorithm is given in Algorithm 1. The algorithm can be
+further optimized for GPU computation to avoid the numerous
+conditionals, however, the conditionals were left for clarity.
+Once the bled intermediate image B has been calculated,
+all images/intermediates required for the proposed watercolor
+simulation are available and a series of stylization operations
+follow, which build up the watercolor simulated result. These
+operations take place at the stylization shader stage, as shown
+in Figure 4. Color bleeding is the ﬁrst e ﬀect to be included at
+the stylization stage by combining the previously bled interme-
+diate image B into the color image I. For this purpose, the bled
+image B is up-sampled and blended according to the control
+mask Ctrl – which was modiﬁed by the algorithm to include
+the surrounding bled pixels, when required.
+Icb = Ctrl(B− I) + I (7)
+The resulting color bled image Icb simulates the pigment
+diﬀusion, which occurs when the colors bleed into each other.
+The eﬀect and the bleeding parameters (blue control channel)
+can be clearly observed in Figure 6. Further examples of color
+bleeding can be found integrated in Figures 5, 11a, 11c, 11d,
+11e, 11f, 12, 13a, 13b, 13c, 13d, 15d and 16.
+Edge Darkening
+Edge darkening is a characteristic eﬀect that manifests itself
+when the pigment is carried out to the boundaries of a colored
+area, due to surface tension. This causes a higher concentration
+of pigments at the edges of the image and, therefore, a darker
+appearance. The edge darkening eﬀect has been one of the most
+studied and implemented characteristics in watercolor. Early
+solutions in object-space involved analyzing nearby pixels for a
+diﬀerence in depth and object identiﬁers [24] and subtracting a
+blurred intensity from the alpha values of the object identiﬁers
+[26] – which in turn dilutes the main color. However, these
+models present a problem when texture information needs to be
+taken into account. Current solutions to simulate edge darken-
+ing in image-space involve edge detection algorithms such as
+the sobel ﬁlter [25, 15]. However, edge darkening is not sim-
+ply a darkened outline, which results from most edge detection
+algorithms. Edge darkening presents itself as a gradient dark-
+ening along the boundaries of the previously wet surface.
+Blurred image
+ Color image
+ 1 - edge mask
+ Darker edge
+Figure 10: Edge darkening simulation process ( C = (31, 171, 224)).
+Note: The kernel in this example was increased for illustration pur-
+poses
+To model the gradient pigment accumulation found at the
+edges, we build upon the di ﬀerence of Gaussians (DoG) fea-
+ture enhancement algorithm. However, as the images do not
+contain any noise, only one low-pass ﬁltered image is required.
+For this purpose, we take the previously calculated intermedi-
+ate blurred image, found in the frame bu ﬀer. Additionally, in
+our algorithm, the image I is subtracted from the blurred image
+Ib. This deviation from the standard di ﬀerence of Gaussians
+algorithm is done in order to avoid edge darkening at brighter
+areas of the image such as the paper color. Once the edges have
+been calculated, the maximum intensity value from the RGB
+channels is taken. To eliminate artifacts created by the DoG at
+color gradients, the edges are modulated through a smoothstep
+function. The resulting edges alter the bled image Icb through
+the color transmittance modiﬁcation model, darkening the color
+at the edges. A simple equation, without the smoothstep edge
+modulation, can be seen in Equation 8. The simulation process
+from our model can be seen in Figure 10.
+Ied = I1+Ctrl×max(Ib−I)
+cb (8)
+Darkened edges do not occur evenly throughout the paint-
+ing, therefore, the user is able to art-direct this e ﬀect by modi-
+fying the respective vertex color value Ctrl, represented in the
+parameterized control mask.
+Paper Distortion and Granulation
+Paper distortion occurs when the rough surface of the paper
+texture creates small distortions to the areas being painted. This
+happens through the interaction between the roughness of the
+surface and the hairs of the brushes or through surface inclina-
+tions which move the pigments towards the valleys of the paper.
+The latter cause is also directly correlated with the paper gran-
+ulation eﬀect. Paper granulation is the result of the higher con-
+centration of pigments found at the valleys of the paper, which
+generate a darkened appearance. In order to simulate both of
+these eﬀects, actual paper textures were used, as implemented
+by previous researchers [15, 16, 25, 26].
+In our system, paper distortion is e ﬀectively computed by
+directly sampling the color values at UVs that have been shifted
+by the surface inclinations, available through the normal map of
+the paper texture. The amount of paper distortion can also be
+art-directed towards any desired result.
+The ﬁnal step in our pipeline involves the paper granula-
+tion eﬀect. Our model is done in a way that permits individual
+control over the roughness of the paper and the accumulation
+of the pigments at the valleys of the papers. One of the main
+drawbacks of the color transmittance modiﬁcation model is that
+once a channel is fully saturated, the color will not be darkened
+as 1n = 1 for n∈ R. Therefore, a split model is proposed which
+linearly interpolates between the color transmittance modiﬁca-
+tion model and color subtraction, depending on the image satu-
+ration I.
+Ig = I(I− Piv) + (1− I)I1+(Ctrl×dPiv) (9)
+The density amount variable d modulates the intensity of
+the inverted paper texture Piv. This in turn is controlled by a
+8
+===== PAGE 9 =====
+Ctrl parameter to also art-direct the pigment density at the val-
+leys of the paper. Once the geometry has been through all the
+changes and calculations from Section 3 onward, the ﬁnal wa-
+tercolor simulated image is presented to the user.
+4. Results and Discussion
+To portray a successful watercolorized result through our
+approach, the individual stylization e ﬀects need to be directed
+together in a congruent fashion. For this purpose, the direct
+stylization pipeline (Figure 3) presents itself as a creative cat-
+alyst. The artist has immediate feedback on stylistic changes
+and retains low-level control over each of the aforementioned
+watercolor eﬀects. The real-time visualization also allows the
+user to e ﬀectively grasp and understand how to best combine
+these eﬀects and achieve the desired result.
+Various rendered results can be seen throughout Figure 11.
+Additional rendered imagery, from professional CG artists which
+participated in a user study, can be found in Figure 13. To ob-
+serve the stylized results in animation, please refer to the ac-
+companying video. An additional comparison to other object-
+space watercolor simulation systems can be observed in Fig-
+ure 15. To personally test the direct watercolor stylization sys-
+tem, an implementation, together with learning resources, are
+also provided in the Appendix A - Supplementary Material.
+4.1. Versatility
+The watercolor characteristics we have contributed and mod-
+eled extend the palette of watercolor e ﬀects found in object-
+space systems by introducing hand tremors, color bleeding and
+a painterly watercolor reﬂectance model – which takes advan-
+tage of the unique translucence and turbulence of the medium.
+Together with this contribution, we enhanced existing eﬀects by
+modeling edge darkening with gradual pigment accumulation,
+proposed an eﬃcient way to calculate paper distortion and en-
+abled split control over paper granulation. All these e ﬀects are
+complemented by art-directed, localized object-space control
+using a direct stylization pipeline. Integrating all simulated wa-
+tercolor eﬀects with low-level control and immediate feedback
+into a stylization system enabled an unprecedented versatility
+and combination of e ﬀects, which can extensively control and
+transform the watercolorized rendered outcome.
+4.2. Photoreal Watercolor
+It is important to underline that, in the same way as tradi-
+tional watercolors are used by acclaimed artists such as Anders
+Zorn and Steven Kozar to depict realism, the watercolor system
+can also be used to simulate watercolorized photorealistic de-
+pictions. This happens when using highly detailed, photoreal-
+istic textures, as the system will not pre-ﬁlter them. Therefore,
+the level of abstraction and the degree of photo-realism in the
+watercolorized result depends mostly on the textures assigned
+by the user. This implementation supports a wider spectrum of
+watercolor imagery, but relies on the artist to source the amount
+of realism that is rendered. A simple, but clear example that
+illustrates how the system treats photorealistic textures is found
+(a) 3D watercolorized text
+(b) Stylized character (gotita)
+ (c) A Patch of Heaven, model
+c bSander Vander Meiren
+(d) Spheres with diﬀerent stylization parameters
+(e) Stylized test scene
+(f) Scarabs model © Abimael Gonzalez Lopez
+Figure 11: Rendered frames, captured from the Maya viewport
+9
+===== PAGE 10 =====
+in Figure 12. In this comparison, both spheres are rendered with
+the same lighting conditions and normal /specular/color texture
+maps. However, the results are aesthetically quite di ﬀerent.
+The painterly watercolor reﬂectance model and its attributes,
+together with the art-directed eﬀects, give the stylized example
+in Figure 12b a watercolorized look. When observed in de-
+tail, the shade tint provides additional color variations, the edge
+darkening accumulates pigment and also adds granularity. Fur-
+thermore, the paper granulation and distortion gives a tangible
+property, whereas the color bleeding gives the result a manual
+touch. The rendered result, while realistic looking, possesses
+the qualities of the watercolor medium.
+(a) Specular shader
+ (b) Watercolor shader
+Figure 12: Watercolorization example of a detailed surface texture
+4.3. Implementation
+Our system uses a direct stylization pipeline, implemented
+mostly in the GPU as an override to Viewport 2.0 within Au-
+todesk Maya 2016 Ext. 2. By implementing the system in a
+widely used digital content creation software, users rapidly fa-
+miliarized themselves with the new approach and were able to
+see immediate, art-directed results, at every step of the pipeline.
+The smooth learning curve was also conﬁrmed by the unani-
+mous response of the artists that participated in the user study.
+The stylization technology can further be used directly in their
+animated productions with their assets, improving their styliza-
+tion workﬂow and creative decisions. This permitted the varied
+results created by the di ﬀerent CG artists, which can be seen
+in Figure 13. The proposed watercolor simulation performs in
+real-time and scales well with scene complexity, as computation
+time is mostly resolution dependent. The maximum resolution
+is capped by the framebuﬀer of a graphics card. Modern GPUs
+support framebuﬀers of up to 16K x 16K (16.384 x 16.384)
+pixels, which amounts to more than 268 megapixel per image.
+Compared to the previous implementation, found in the con-
+ference version of this paper [6], there is a 1ms computation
+improvement, mostly achieved by using MRT shaders (shaders
+that write pixels to multiple render targets /buﬀers). Technical
+details and performance statistics for each test scene using our
+system can be seen in Table 1. These tests were conducted in
+Full HD Resolution (1920 x 1080) with the following hardware
+conﬁguration: NVIDIA GeForce GTX Titan X, 2x Intel Xeon
+E5-2609 @2.40 and 16gb RAM.
+Table 1: Performance on diﬀerent scenes (Full HD)
+Figs. Triangles FPS (avg)
+6 83440 180
+11d 26088 210
+11b 57000 210
+5 106106 150
+11e 347680 90
+16 38324 125
+5. Evaluation
+Evaluating an expressive rendering approach is no straight-
+forward task [33] and depends on the purpose it is being used
+for [34]. The evaluation of the system presented in this paper is
+especially challenging, as it involves low-level stylization con-
+trol in object-space, with the purpose of obtaining aesthetically
+faithful and pleasing watercolor imagery. Therefore, a special-
+ized skill-set is required of users to fully take advantage of the
+system’s potential. These skills include object-space (3D) pro-
+ﬁciency, proﬁciency within the software of implementation and
+experience/knowledge in the expressive visual style that is be-
+ing sought after.
+The nature of the stylization system and the work presented
+in this paper is better suited for a qualitative evaluation. Through
+a qualitative evaluation, we aim to gain a better understanding
+of the reception with its intended target users and the eﬀective-
+ness of the combined eﬀects to reproduce simulated watercolor
+imagery. To this end, two methods were used, which involve:
+(1) a user study of CG artists using the system by stylizing their
+own assets and (2) a comparison to previous object-space water-
+color stylization approaches using similar assets. To conclude
+the evaluation, the limitations of our approach and system are
+formulated, which in turn present themselves as an interesting
+ground for future research.
+5.1. User Study
+The art-directed watercolor stylization system proposed in
+this paper is conceived to grant low-level stylization control to
+the end-user. As such, following the interaction spectrum of
+NPAR proposed by Tobias Isenberg [35], highly skilled artists
+are required to fully take advantage of its features and potential.
+This means that the quality of the aesthetic results does not only
+dependent on the algorithms and implementation, but is also
+highly inﬂuenced by the skills of the artist using it. An ideal
+candidate should possess proﬁciency in:
+• Object-space (3D) creation and manipulation
+• The software of implementation
+• Rendering and composition
+• Watercolor aesthetics
+The skill-set is quite unique and involves both, technical
+and artistic knowledge. To this purpose, we approached pro-
+fessional CG artists with extensive experience in the anima-
+tion industry to participate in our study. It can also be argued
+that traditional watercolor artists would be better candidates for
+10
+===== PAGE 11 =====
+the study. However, the complexity of working in object-space
+without previous 3D training and the possibility of testing the
+system with more varied assets, workﬂows and animation, sup-
+ported our decision and resolve. A total of 7 CG artists from
+all around the world showed keen interest in using and provid-
+ing feedback on the watercolor stylization system and 5 of them
+managed to participate in the user study, investing a total of over
+51 hours stylizing their own assets.
+The conducted study ﬁrst required the users to watch 15
+minutes of instructional videos, explaining the di ﬀerent levels
+of control available in the direct stylization pipeline and the
+simulated watercolor eﬀects. These tutorials were necessary to
+bring participants to a similar level of proﬁciency using the sys-
+tem and have also been included in the Appendix A - Supple-
+mentary Material. Following this, the participants were asked
+to spend over two hours stylizing their own assets. However,
+this time-frame did not stop their dedication, with some partic-
+ipants investing more than 15 hours and providing us with their
+watercolorized imagery (featured in Figure 13) and animated
+clips (featured in the accompanying video). To ﬁnalize the user
+study, the participants were asked to ﬁll in a questionnaire with
+24 questions, designed to understand and study the following:
+• The reception of the watercolor stylization
+• The usefulness of a direct stylization pipeline
+• Their needs as artists for a successful watercolor stylization
+and a direct stylization pipeline
+Regarding the watercolor stylization, only three of the par-
+ticipants had painted with watercolors before, but all partici-
+pants agreed that the watercolor stylization in object-space sat-
+isﬁed their creative desires (see A-Q3 in Figure 14). Some fea-
+tures/eﬀects that participants would like to have improved are:
+the ability to locally control and embed the watercolor e ﬀects
+in the cast shadows, further improve on the edge darkening ef-
+fect (incorporating custom widths and darker concentrations),
+improve the color-bleeding e ﬀect (incorporate a bleed direc-
+tion and better temporal coherence), improve the object-space
+shader (supporting alpha transparency), an easier access to ani-
+mate the painted parameters, custom paper colors and a way to
+export the diﬀerent passes for ﬁnal manual compositing. Addi-
+tional new features/eﬀects that they would like to have included
+are: object-space splatters, a more subtle solution to tempo-
+ral coherence for e ﬀects inﬂuenced by the paper texture and
+subtractive color blending. None of the participants had expe-
+rienced or seen object-space watercolor stylization before, but
+they all agreed that the control over the watercolor e ﬀects was
+enough for their stylization purposes (see A-Q9 in Figure 14).
+Overall, the feedback over the watercolor stylization was quite
+positive. The users especially appreciated the way the color
+bleeding and edge distortion work, together with the ease of
+use, the amount of personalization, the simple uniﬁed tools, the
+painting of parameters and the immediate visual feedback.
+Regarding the direct stylization pipeline, all of the partici-
+pants strongly agreed on a Likert scale (see B-Q3 in Figure 14)
+that the real-time stylization feedback beneﬁted their creative
+decisions and aspirations. Additionally, to the most part, they
+also agreed that a direct stylization system is an improvement
+over previous methods of object-space stylization (see B-Q5 in
+Figure 14). They all believe and agreed that a direct object-
+space stylization pipeline is much faster to work with and more
+artist friendly, compared to an o ﬄine/decoupled pipeline (see
+B-Q7 in Figure 14). Especially because the results are given in
+real-time in object-space, giving the possibility to stylize and
+navigate the scene within a painted world. This o ﬀered them
+new stylization opportunities to capture details and shots that
+would probably have been missed, using a solely decoupled
+stylization pipeline. However, an option to render the di ﬀer-
+ent passes to a decoupled pipeline would o ﬀer further ﬂexibil-
+ity and custom ﬁnal tweaks. The combination of both would
+be an ideal solution for three of the participants. Overall, the
+direct stylization pipeline had an outstanding reception, to the
+extent of having the participants agreeing that direct-stylization
+systems are the future of artist-friendly stylization tools (see
+B-Q8 in Figure 14). This highlights the relevance of direct
+stylization pipelines in object-space and supports our previous
+claims over its beneﬁts, compared to oﬀ-line/decoupled styliza-
+tion pipelines. Some additional features /aspects that would fa-
+cilitate the artist’s workﬂow within the direct stylization pipeline
+are: the possibility of exporting /importing the stylization set-
+tings, having an option of texture map control (instead of vertex
+color control) for ﬁner bleeding control, a tool to actually paint
+textures with traditional looking brushstrokes directly in the
+viewport, image-space stroke projection (is currently in object-
+space), together with some suggested improvements on the UI.
+Regarding Expressive Rendering (NPR) and the implemen-
+tation of our system, all but one participant strongly agreed that
+the implementation in Autodesk Maya eased the learning curve
+(see B-Q1 in Figure 14). Finally, four participants strongly
+agreed that they would start using expressive rendering styl-
+ization tools in their own projects, if these were to be available
+for them (see C-Q1 in Figure 14). The entire questionnaire and
+all responses gathered from this user study can be found in the
+Appendix A - Supplementary Material.
+Strongly Agree (5)Agree (4)Neutral (3)Disagree (2)Strongly Disagree (1)
+Q1: Avg. 4.8
+Q8: Avg. 4.4
+Q7: Avg. 4.6
+Q5: Avg. 4.4
+Q3: Avg. 5.0
+Q1: Avg. 4.8
+Q9: Avg. 4.4
+Q3: Avg. 4.4
+A: Regarding the watercolor stylization
+C: Regarding Expressive Rendering
+B: Regarding the direct stylization pipeline
+Figure 14: Overview of Likert scale responses of the user study.
+11
+===== PAGE 12 =====
+(a) Stylized by Joan and Miquel Cabot
+(b) Stylized by Eduardo Altamirano
+ (c) Stylized pelican comparison (photoreal - stylized)
+(d) Stylized by Joan Cabot
+(e) Stylized by Pierre Coﬃn
+Figure 13: Real-time viewport renders from diﬀerent artists using the watercolor system. Animation clips of the stylization can be viewed in the
+accompanying video. Additionally, a stylized test scene is available with the provided implementation in Appendix A - Supplementary Material.
+The examples in (a), (b), (c) and (d) were created by participants of the conducted user study.
+12
+===== PAGE 13 =====
+5.2. Comparisons
+Most of the characteristic watercolor e ﬀects available in
+object-space, studied by previous researchers, have been in-
+cluded in the system and improved upon. This allows our re-
+sults to easily assimilate other outcomes and go beyond them,
+thanks to several unique contributions such as: object-space
+hand tremors, color-bleeding, a watercolor reﬂectance model
+and object-space pigment turbulence /fading – all bound and
+controlled together by the direct stylization pipeline. As it can
+be appreciated throughout the rendered imagery in this paper
+and the comparisons shown in Figure 15, the results oﬀer a sig-
+niﬁcant improvement in versatility, thanks to its art-direction.
+This versatility results in an overall wider range of character-
+istic looks found in watercolors. Some previous attempts have
+focused only on recreating a speciﬁc style, but watercolor is a
+natural medium, which can be used to create artwork in a vari-
+ety of diﬀerent ways. The low-level, art-directed focus of our
+system allows to recreate this stylistic freedom, which is com-
+plemented through a direct stylization pipeline. In Figure 15,
+we show previous approaches by other researchers and our re-
+sults, using similar assets. The watercolorized image at the bot-
+tom, to the far right of the comparison is of special interest, as it
+was approximated to the results of Luft and Deussen [26], using
+our system. This stylization was conducted as an experiment to
+test how close an asset could be art-directed, to resemble the
+look of another approach. While the simulated eﬀects vary and
+are implemented diﬀerently, the results do in general resemble
+each other. From here, our system can take full advantage of
+the art-directed stylization oﬀered by our approach and produce
+more complex stylized results, as shown in Figure 6.
+Lum and Ma
+ Lei and Chang
+ Bousseau et al.
+ Ours
+Burgess et al.
+ Luft and Deussen
+ Ours
+Figure 15: Comparisons between watercolor simulation systems (mag-
+nify to see details).
+5.3. Limitations
+An inherent limitation of our implementation lies on the
+vertex density and topology of polygonal objects. As param-
+eters are assigned per-vertex, a certain degree of polygonal res-
+olution is required, to guarantee proper control. Topology arti-
+facts may also appear when vertices with di ﬀerent control val-
+ues are too close to each other and not evenly distributed, see
+Figure 16. Mindful modeling and di ﬀerent levels of detail are
+suggested to overcome this limitation. Another alternative is to
+embed the control within object-space painted textures, as also
+Figure 16: Undesired shading lines on the wall, as varying turbulence
+control values are assigned in uneven topology (red wireframe). For a
+smooth interpolation of control values, even topology is recommended
+(green wireframe). Van Gogh Room model c bRuslan Sokolovsky
+suggested by one of the user study participants. This would
+allow for an arbitrary resolution of control, but would require
+properly unwrapped UVs for each geometric object. Finally,
+the use of Ptex to drive the stylization could overcome this lim-
+itation, at an additional performance cost.
+The creation of a direct stylization pipeline for a speciﬁc
+style might require additional software development, compared
+to decoupled stylization pipelines. However, the immediacy of
+the system has proved to be of great advantage to artists who
+participated in the user study, potentially saving countless hours
+during production and augmenting their creative vision. How-
+ever, art-directed systems are also propense to overwhelm with
+control, which might not necessarily be required. This in turn
+aﬀects the performance and adds clutter to the control appli-
+cation. Proper training material and collaboration with artists
+is necessary to deﬁne their requirements and not overwhelm
+them with unnecessary options. Further user studies, including
+user behavior, could optimize any stylization system to address
+this limitation. There is still much to learn, as each stylization
+might require special considerations. The user study conducted
+for this paper involved only ﬁve professional CG artists. While
+the sample size was enough to get initial insight and feedback,
+more studies in the future might help us researchers to develop
+the technology that our intended target users want.
+Finally, our system o ﬀers only a limited amount of water-
+color eﬀects compared to the traditional counterpart. In addi-
+tion, some implemented e ﬀects might present small artifacts,
+as they have been optimized mainly for performance. The em-
+bedded control of e ﬀects at the surfaces of geometry are also
+prone to perspective distortion, producing potentially undesired
+eﬀects such as scaling and foreshortening. Compared to pre-
+vious approaches in object-space, a noticeable missing e ﬀect
+was gaps and overlaps, implemented by Luft and Deussen [27].
+These were left out from our system, as the gaps and overlaps
+they simulated appear only at the silhouettes of rasterized lay-
+ers, in which similarly grouped objects are found. In reality,
+gaps and overlaps may also happen within these layers, which
+are not taken into consideration in their approach. Their sys-
+tem is also substantially di ﬀerent to ours and does not scale
+well with scene complexity, which made a straightforward im-
+plementation impossible. Nonetheless, this e ﬀect does present
+itself often in watercolor imagery and, together with other ad-
+ditional characteristic watercolor eﬀects, are open opportunities
+for future research, as are all previously stated limitations.
+13
+===== PAGE 14 =====
+6. Conclusion and Future Work
+We have presented an object-space watercolor simulation
+system, using a direct stylization pipeline, which facilitates art-
+directed watercolor rendered animation. The art-direction is
+based on intensity channels, which control an enhanced/extended
+palette of watercolor eﬀects through rasterized masks. Our so-
+lution performs in real-time and can easily be adapted and im-
+plemented into most real-time rendering pipelines. We are able
+to produce an extensive variety of looks, outperforming pre-
+vious systems, which rely heavily on global parametric val-
+ues for watercolor stylization. Furthermore, we have evaluated
+our system by conducting a user study with professional CG
+artists. After stylizing their own assets, the artists were satisﬁed
+with the stylization versatility and highly praised the immedi-
+ate feedback that it o ﬀered. Further valuable feedback and in-
+sight on their artistic needs for watercolor stylization was given
+and has been included. Our system manages to deal with the
+challenge of art-direction in object-space simulations and opens
+many new opportunities for future applications and research.
+There are several ways in which the proposed watercolor
+simulation system can be improved and extended. The most im-
+portant is to further extend the palette of simulated watercolor
+eﬀects. Characteristic e ﬀects such as gaps and overlaps, dry-
+brush (dry-on-dry technique), the high frequency noise caused
+by layered patches of water and the outlining pencil strokes
+found sometimes in watercolor illustrations. Existing simulated
+eﬀects are also open for improvements, which should be based
+on the artistic needs of NPR users. The conducted user study
+has given insight in this aspect and opens up many venues for
+future research and development – not only for watercolor, but
+on general stylization systems.
+Traditional artists should also be considered in future NPR
+user studies. They might not be able to fully harvest the full po-
+tential of object-space stylization systems, but they might know
+better how their ﬁnal rendered result should look like. These
+studies would bring us closer to fully satisfying the NPR Tur-
+ing Test, proposed by David Salesin [36] and approaching a
+ground truth in expressive rendering.
+As traditional watercolor is painted over a 2D surface and
+the control of the e ﬀects is placed on the surface of geometric
+objects, the 3D perspective will distort the rasterized control pa-
+rameters, modifying the e ﬀects and potentially generating un-
+desired results. Alternatives for avoiding unwanted perspective
+scaling of the parameterized control masks (i.e. pigment turbu-
+lence) and diﬀerent ways to control and interact with simulated
+eﬀects in object-space are valuable venues of future research in
+expressive rendering – together with eﬃcient encoding of mul-
+tiple stylization eﬀects within object-space.
+Finally, a watercolor stylization system could further ben-
+eﬁt from dynamic paper simulation – when alternating paper
+textures are not desired. This feature could enhance frame-to-
+frame coherence and can be extended from previous work re-
+garding dynamic canvas [37, 38, 39].
+Acknowledgment
+We would like to thank Bernhard Haux, Henriette Peter and
+Romain Vergne for their comments, advice and suggestions,
+together with the anonymous reviewers for their constructive
+feedback. Our immense gratitude is also with the participants
+in the user study: Joan Cabot, Eduardo Altamirano, Miquel
+Cabot, Jason Labbe and an anonymous tester. Without their
+enthusiasm and dedication, we would not have such a variety
+of imagery and feedback. We would also like to thank all other
+artists that have shown their interest and tested the watercolor
+stylization system at di ﬀerent stages of development. Addi-
+tional thanks to Oculus Story Studio for allowing us to styl-
+ize Henry and the modelers who have shared their scenes with
+us. This research is supported by the Interdisciplinary Graduate
+School (IGS) at the Nanyang Technological University, Singa-
+pore and the National Research Foundation, Prime Minister’s
+Oﬃce, Singapore under its IDM Futures Funding Initiative.
+Appendix A - Supplementary Material
+The supplementary material, provided in electronic form
+with this paper, includes the following:
+• An accompanying video of the paper.
+• An implementation of the direct watercolor stylization sys-
+tem for Autodesk Maya 2016 Ext. 2 with a test scene.
+• The training material on how to install and use the direct
+watercolor stylization system, created for the user study.
+• The questionnaire of the user study and the results from the
+participants.
+The terms of the Creative Commons Attribution 4.0 Inter-
+national License are found at: https://creativecommons.org/.
+References
+[1] Rim S, Dutcher L. Watercolor: Paintings by Contemporary Artists.
+Chronicle Books; 2013. ISBN 1452112649.
+[2] Ong KS. Mastering Light & Shade in Watercolor. International Artist;
+2003. ISBN 1929834233.
+[3] Scheinberger F. Urban Watercolor Sketching: A Guide to Drawing, Paint-
+ing, and Storytelling in Color. Watson-Guptill Publications; 2014. ISBN
+9780770435219.
+[4] Pollard JG. Watercolor Unleashed: New Directions for Traditional Paint-
+ing Techniques. North Light Books; 2013. ISBN 1440320888.
+[5] Read P, Meyer MP. Restoration of Motion Picture Film. Butterworth-
+Heinemann Series in Conservation and Museology; Elsevier Science;
+2000. ISBN 9780080516196.
+[6] Montesdeoca SE, Seah HS, Rall HM. Art-directed Watercolor Ren-
+dered Animation. In: NPAR’16 Proceedings of the Workshop on Non-
+Photorealistic Animation and Rendering. The Eurographics Association;
+2016, p. 51–8. doi: 10.2312/exp.20161063.
+[7] Small D. Simulating watercolor by modeling di ﬀusion, pigment, and
+paper ﬁbers. SPIE Proceedings 1991;1460, Image Handling and Repro-
+duction Systems Integration:140–6. doi:10.1117/12.44417.
+[8] Curtis CJ, Anderson SE, Seims JE, Fleischer KW, Salesin DH. Computer-
+generated Watercolor. In: Proceedings of the 24th Annual Conference
+on Computer Graphics and Interactive Techniques (SIGGRAPH 1997).
+ACM Press/Addison-Wesley Publishing Co.; 1997, p. 421–30. doi: 10.
+1145/258734.258896.
+14
+===== PAGE 15 =====
+[9] You M, Jang T, Cha S, Kim J, Noh J. Realistic paint simulation based
+on ﬂuidity, di ﬀusion, and absorption. Computer Animation and Virtual
+Worlds 2013;24(3-4):297–306. doi:10.1002/cav.1500.
+[10] Van Laerhoven T, Van Reeth F. Real-time simulation of watery paint.
+Computer Animation and Virtual Worlds 2005;16(3-4):429–39. doi: 10.
+1002/cav.95.
+[11] Chu NSH, Tai CL. Moxi: Real-time ink dispersion in absorbent pa-
+per. ACM Trans Graph 2005;24(3):504–11. doi: 10.1145/1073204.
+1073221.
+[12] DiVerdi S, Krishnaswamy A, M ˇech R, Ito D. Painting with Polygons:
+A Procedural Watercolor Engine. Visualization and Computer Graphics,
+IEEE Transactions on 2013;19(5):723–35. doi: 10.1109/TVCG.2012.
+295.
+[13] Lu J, Barnes C, DiVerdi S, Finkelstein A. Realbrush: Painting with ex-
+amples of physical media. ACM Trans Graph 2013;32(4):117:1–117:12.
+doi:10.1145/2461912.2461998.
+[14] Johan H, Hashimoto R, Nishita T. Creating Watercolor Style Images
+Taking Into Account Painting Techniques. The Journal of the Society
+for Art and Science 2004;3(4):207–15. doi: 10.3756/artsci.3.207.
+[15] Bousseau A, Kaplan M, Thollot J, Sillion FX. Interactive Watercolor
+Rendering with Temporal Coherence and Abstraction. In: Proceedings
+of the 4th International Symposium on Non-photorealistic Animation and
+Rendering. ACM; 2006, p. 141–9. doi:10.1145/1124728.1124751.
+[16] Wang M, Wang B, Fei Y, Qian K, Wang W, Chen J, et al. To-
+wards Photo Watercolorization with Artistic Verisimilitude. Visualiza-
+tion and Computer Graphics, IEEE Transactions on 2014;20(10):1451–
+60. doi: 10.1109/TVCG.2014.2303984.
+[17] L ¨u C, Chen X. Image watercolorization based on visual weight-map. In:
+Image and Signal Processing (CISP), 2014 7th International Congress on.
+2014, p. 233–7. doi: 10.1109/CISP.2014.7003783.
+[18] Bousseau A, Neyret F, Thollot J, Salesin D. Video watercolorization
+using bidirectional texture advection. ACM Trans Graph 2007;26(3).
+doi:10.1145/1276377.1276507.
+[19] Gatys LA, Ecker AS, Bethge M. A Neural Algorithm of Artistic Style.
+CoRR 2015;abs /1508.06576. URL: http://arxiv.org/abs/1508.
+06576; [accessed: 2016-10-28].
+[20] Fi ˇser J, Luk´aˇc M, Jamriˇska O, ˇCad´ık M, Gingold Y, Asente P, et al. Color
+Me Noisy: Example-based Rendering of Hand-colored Animations with
+Temporal Noise Control. Computer Graphics Forum 2014;33(4):1–10.
+doi:10.1111/cgf.12407.
+[21] B ´enard P, Cole F, Kass M, Mordatch I, Hegarty J, Senn MS, et al. Styliz-
+ing animation by example. ACM Trans Graph 2013;32(4):119:1–119:12.
+doi:10.1145/2461912.2461929.
+[22] Fi ˇser J, Jamriˇska O, Luk´aˇc M, Shechtman E, Asente P, Lu J, et al. StyLit:
+Illumination-guided Example-based Stylization of 3D Renderings. ACM
+Trans Graph 2016;35(4):92:1–92:11. doi:10.1145/2897824.2925948.
+[23] Lum EB, Ma KL. Non-photorealistic rendering using watercolor inspired
+textures and illumination. In: Proceedings of the 9th Paciﬁc Conference
+on Computer Graphics and Applications. 2001, p. 322–30. doi:10.1109/
+PCCGA.2001.962888.
+[24] Burgess J, Wyvill G, King SA. A system for real-time watercolour ren-
+dering. In: Computer Graphics International. IEEE; 2005, p. 234–40.
+doi:10.1109/CGI.2005.1500426.
+[25] Lei SIE, Chang CF. Real-Time Rendering of Watercolor E ﬀects for
+Virtual Environments. Springer Berlin Heidelberg; 2005, p. 474–81.
+doi:10.1007/978-3-540-30543-9\_60 .
+[26] Luft T, Deussen O. Real-Time Watercolor for Animation. Journal of
+Computer Science and Technology 2006;21(2):159–65. doi: 10.1007/
+s11390-006-0159-9 .
+[27] Luft T, Kobs F, Zinser W, Deussen O. Watercolor Illustrations of
+CAD Data. In: Computational Aesthetics in Graphics, Visualiza-
+tion, and Imaging. The Eurographics Association; 2008,doi: 10.2312/
+COMPAESTH/COMPAESTH08/057-063.
+[28] Semmo A, Limberger D, Kyprianidis JE, D ¨ollner J. Image stylization by
+interactive oil paint ﬁltering. Computers & Graphics 2016;55:157 –71.
+doi:http://dx.doi.org/10.1016/j.cag.2015.12.001.
+[29] Semmo A, D ¨urschmid T, Trapp M, Klingbeil M, D ¨ollner J, Pasewaldt
+S. Interactive Image Filtering with Multiple Levels-of-Control on Mo-
+bile Devices. In: Proceedings of the ACM SIGGRAPH Asia Symposium
+on Mobile Graphics and Interactive Applications. ACM; 2016, p. NA.
+doi:10.1145/2999508.2999521.
+[30] Harvill A. E ﬀective Toon-Style Rendering Control Using Scalar
+Fields. Memo; 2007. URL: http://graphics.pixar.com/library/
+ToonRendering/index.html; [accessed: 2016-10-28].
+[31] Birren F. Principles of Color: A Review of Past Tradition and Modern
+Theories. Schiﬀer Publishing; 1987. ISBN 0887401031 9780887401039.
+[32] Tomasi C, Manduchi R. Bilateral Filtering for Gray and Color Images. In:
+Proceedings of the Sixth International Conference on Computer Vision.
+ICCV ’98; Washington, DC, USA: IEEE Computer Society. ISBN 81-
+7319-221-9; 1998, p. 839–.
+[33] Hall P, Lehmann AS. Don’t Measure—Appreciate! NPR Seen Through
+the Prism of Art History. In: Image and Video-Based Artistic Stylisa-
+tion; vol. 42 of Computational Imaging and Vision ; book 16. Springer-
+Verlag London. ISBN 9781447145196; 2013, p. 333–51. doi: 10.1007/
+978-1-4471-4519-6 .
+[34] Isenberg T. Evaluating and Validating Non-photorealistic and Illustrative
+Rendering; chap. 15. London: Springer London. ISBN 978-1-4471-4519-
+6; 2013, p. 311–31. doi: 10.1007/978-1-4471-4519-6_15 .
+[35] Isenberg T. Interactive NPAR: What type of tools should we create? In:
+NPAR’16 Proceedings of the Workshop on Non-Photorealistic Animation
+and Rendering. The Eurographics Association; 2016, p. 89–96. doi: 10.
+2312/exp.20161067.
+[36] Salesin DH. Non-Photorealistic Animation & Rendering: 7 Grand
+Challenges. Keynote talk at Second International Symposium on Non-
+Photorealistic Animation and Rendering (NPAR 2002, Annecy, France,
+June 3–5, 2002); 2002.
+[37] Cunzi M, Thollot J, Paris S, Debunne G, Gascuel JD, Durand F. Dy-
+namic Canvas for Immersive Non-Photorealistic Walkthroughs. In: Pro-
+ceedings Graphics Interface. Graphics Interface; A K Peters, LTD. ISBN
+1568812078; 2003, p. 121–30.
+[38] Kaplan M, Cohen E. A Generative Model for Dynamic Canvas Mo-
+tion. In: Proceedings of the First Eurographics Conference on Compu-
+tational Aesthetics in Graphics, Visualization and Imaging. Eurographics
+Association; 2005, p. 49–56. doi:10.2312/compaesth/compaesth05/
+049-056.
+[39] B ´enard P, Bousseau A, Thollot J. Dynamic Solid Textures for Real-Time
+Coherent Stylization. In: Proceedings of the 2009 Symposium on Inter-
+active 3D Graphics and Games. ACM; 2009, p. 121–7. doi: 10.1145/
+1507149.1507169.
+15
