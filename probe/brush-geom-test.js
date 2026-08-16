@@ -66,23 +66,26 @@ const W = 200, H = 160;
 
 // ---------- 4) 毛缘 mask 绘制:非零、确定、在合理范围 ----------
 {
-  const brush = { bristle: 16, beta: 0.3, spring: 0.5 };
+  const brush = { bristle: 16, beta: 0.3, spring: 0.5, shape: "flat" };
   const br = new Bristles(brush, 3);
   const mask2 = new Float32Array(W * H);
   br.reset(100, 80);
-  const width = br.advance(110, 80, 1, 0, 0.8, 0.6, 0.1, 10);
-  br.paintMarks(mask2, W, H, 110, 80, 1, 0, width);
+  br.advance(110, 80, 1, 0, 0.8, 0.6, 0.1, 10);
+  br.paintMarks(mask2, W, H);
   let nz = 0;
   for (let i = 0; i < mask2.length; i++) if (mask2[i] > 0) nz++;
   ok("毛缘 mask 非零像素", nz > 20, `nz=${nz}`);
   const br2 = new Bristles(brush, 3);
   const mask3 = new Float32Array(W * H);
   br2.reset(100, 80);
-  const w2 = br2.advance(110, 80, 1, 0, 0.8, 0.6, 0.1, 10);
-  br2.paintMarks(mask3, W, H, 110, 80, 1, 0, w2);
+  br2.advance(110, 80, 1, 0, 0.8, 0.6, 0.1, 10);
+  br2.paintMarks(mask3, W, H);
   let same = true;
   for (let i = 0; i < mask2.length; i++) if (mask2[i] !== mask3[i]) { same = false; break; }
   ok("毛缘 mask 确定性", same);
+  // 平头双轨:两侧权重高于中心(edgeW 形状)
+  const wL = br.edgeW[0], wM = br.edgeW[8], wR = br.edgeW[15];
+  ok("平头笔两侧毛缘权重大于中心(双轨边由构造保证)", wL > wM && wR > wM, `wL=${wL.toFixed(2)} wM=${wM.toFixed(2)} wR=${wR.toFixed(2)}`);
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURES`);

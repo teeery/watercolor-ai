@@ -24,8 +24,21 @@ export class Bristles {
     this.b = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) this.b[i] = (i + 0.5) / this.N * 2 - 1;
     this.tips = new Float32Array(this.N * 2);
+    this.prev = new Float32Array(this.N * 2);
     this.splay = 0;
     this.lineW = Math.min(3, Math.max(1.5, 3 * 16 / this.N)); // 毛厚反比根数保覆盖
+    // 毛缘权重(密度函数,形状身份):平头两侧重(双轨边)、圆头中间重、排刷/勾线均匀
+    const shape = brush.shape ?? "round";
+    this.edgeW = new Float32Array(this.N);
+    for (let i = 0; i < this.N; i++) {
+      const b = this.b[i], ab = Math.abs(b);
+      switch (shape) {
+        case "flat": this.edgeW[i] = 0.35 + 1.3 * ab * ab; break;
+        case "round": this.edgeW[i] = 1 - 0.5 * ab; break;
+        case "wash": this.edgeW[i] = 1 - 0.8 * ab * ab; break;
+        default: this.edgeW[i] = 1; break;
+      }
+    }
     // 首次使用前 tips 未初始化 → init 标记
     this._init = false;
   }
@@ -36,6 +49,8 @@ export class Bristles {
     for (let i = 0; i < this.N; i++) {
       this.tips[i * 2] = cx;
       this.tips[i * 2 + 1] = cy;
+      this.prev[i * 2] = cx;
+      this.prev[i * 2 + 1] = cy;
     }
     this.splay = 0;
   }
@@ -79,47 +94,43 @@ export class Bristles {
   }
 
   /**
-   * 把当前毛尖段 raster 进 mask2(max 合并)。
-   * 段方向 = anchor→tip(毛的瞬时朝向),长度 ≈ 2.5px。
+   * 把毛尖**连续拖痕** raster 进 mask2(max 合并):
+   * 段 = prev tip → 当前 tip(相邻戳连线),形成连续排线而非离散点链;
+   * 转角时拖痕甩向外侧 = 刮痕;平头笔两侧权重高 = 双轨边。
    * @param {Float32Array} mask2 毛缘 mask(w*h)
    * @param {number} w,h 画布
-   * @param {number} cx,cy 笔腹中心(用于 anchor 方向)
-   * @param {number} dirX,dirY 笔向
-   * @param {number} width 当前足迹半宽(advance 返回值)
    */
-  paintMarks(mask2, w, h, cx, cy, dirX, dirY, width) {
-    const perpX = -dirY, perpY = dirX;
+  paintMarks(mask2, w, h) {
     const hw = this.lineW * 0.5;
     for (let i = 0; i < this.N; i++) {
-      const b = this.b[i] * width;
-      const ax = cx + perpX * b, ay = cy + perpY * b;
-      let tx = this.tips[i * 2], ty = this.tips[i * 2 + 1];
-      // 段:tip → tip+方向延伸 2.5px(毛尖出锋)
-      const dx = tx - ax, dy = ty - ay;
-      const len = Math.hypot(dx, dy) || 1;
+      const px = this.prev[i * 2], py = this.prev[i * 2 + 1];
+      const tx = this.tips[i * 2], ty = this.tips[i * 2 + 1];
+      const dx = tx - px, dy = ty - py;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.01) { this.prev[i * 2] = tx; this.prev[i * 2 + 1] = ty; continue; }
       const ux = dx / len, uy = dy / len;
-      const ex = tx + ux * 2.5, ey = ty + uy * 2.5;
-      const x0 = Math.max(0, Math.floor(Math.min(tx, ex) - hw - 1));
-      const x1 = Math.min(w - 1, Math.ceil(Math.max(tx, ex) + hw + 1));
-      const y0 = Math.max(0, Math.floor(Math.min(ty, ey) - hw - 1));
-      const y1 = Math.min(h - 1, Math.ceil(Math.max(ty, ey) + hw + 1));
+      const wt = this.edgeW[i];
+      const x0 = Math.max(0, Math.floor(Math.min(px, tx) - hw - 1));
+      const x1 = Math.min(w - 1, Math.ceil(Math.max(px, tx) + hw + 1));
+      const y0 = Math.max(0, Math.floor(Math.min(py, ty) - hw - 1));
+      const y1 = Math.min(h - 1, Math.ceil(Math.max(py, ty) + hw + 1));
       for (let y = y0; y <= y1; y++) {
         const row = y * w;
         for (let x = x0; x <= x1; x++) {
-          // 点到线段距离
-          const px = x - tx, py = y - ty;
-          const t = clamp01(px * ux + py * uy);
-          const qx = tx + ux * t - x, qy = ty + uy * t - y;
+          // 点到线段距离(参数投影)
+          const vx = x - px, vy = y - py;
+          let t = vx * ux + vy * uy;
+          if (t < 0) t = 0; else if (t > len) t = len;
+          const qx = px + ux * t - x, qy = py + uy * t - y;
           const d = Math.hypot(qx, qy);
-          const m = 1 - d / hw;
+          const m = (1 - d / hw) * wt;
           if (m <= 0) continue;
           const idx = row + x;
-          const v = m > 1 ? 1 : m;
-          if (v > mask2[idx]) mask2[idx] = v;
+          if (m > mask2[idx]) mask2[idx] = m;
         }
       }
+      this.prev[i * 2] = tx;
+      this.prev[i * 2 + 1] = ty;
     }
   }
 }
-
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);

@@ -155,11 +155,11 @@ export class BrushState {
       const wetAvg = b.wetSum / b.n;
       const gbAvg = b.gbSum / b.n;
       // 毛缘门控:干态涌现(有效毛厚过渡)+ 抑制腹池内部(毛缘只留边缘带)
-      const gbScale = 0.25 + 0.75 * gbAvg;
+      const gbScale = 0.3 + 0.6 * gbAvg;
       for (let i = 0; i < b.bristle.length; i++) {
         const pool = b.pool[i];
         let m = b.bristle[i] * gbScale;
-        if (m > 0 && pool > 0.6) m *= Math.max(0, 1 - (pool - 0.6) * 2.5);
+        if (m > 0 && pool > 0.55) m *= Math.max(0, 1 - (pool - 0.55) * 2.2);
         b.bristle[i] = m < 0 ? 0 : m > 1 ? 1 : m;
       }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
@@ -169,7 +169,7 @@ export class BrushState {
         eng.setPigment(prov.basis(prov, tipFrac));
       }
       eng.depositMask(b.pool, { water: wDep, amount: aAvg * K_AMOUNT });
-      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aAvg * K_AMOUNT * 1.5 }); // 毛缘:少水多色(1.3-1.6× 的离散化)
+      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aAvg * K_AMOUNT * 1.25 }); // 毛缘:少水多色(连续拖痕)
     }
   }
 
@@ -217,7 +217,7 @@ export class BrushState {
         // 绘制:腹池(软边,软边宽随戳距 → 连续笔迹) + 毛缘
         const soft = Math.max(3, this.ds * 0.8);
         paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
-        this.bristles.paintMarks(b.bristle, eng.w, eng.h, xi, yi, dx, dy, width);
+        this.bristles.paintMarks(b.bristle, eng.w, eng.h);
         stampsInfo.push({ dt, b });
       }
       this.stamps++;
