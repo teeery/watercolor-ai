@@ -38,10 +38,10 @@ export function footprintRound(mask, w, h, cx, cy, dirX, dirY, width, soft, rng)
   paintEllipse(mask, w, h, cx, cy, width * elong, width, dirX, dirY, soft, { asymHead: 1.5, asymTail: 0.92 });
 }
 
-/** 斜刃矩形(flat):chisel 头,宽度近似不变,圆角软边 */
+/** 斜刃矩形(flat):chisel 头,宽度近似不变,端头更平(方切感) */
 export function footprintFlat(mask, w, h, cx, cy, dirX, dirY, width, soft, rng) {
-  // 矩形近似:沿笔向短、垂直笔向宽(平头笔腹),头尾用双椭圆收角
-  paintEllipse(mask, w, h, cx, cy, width * 0.55, width, dirX, dirY, soft, { asymHead: 1.15, asymTail: 1.15 });
+  // 矩形近似:沿笔向短、垂直笔向宽(平头笔腹),头尾用高不对称收角(≈方切端)
+  paintEllipse(mask, w, h, cx, cy, width * 0.55, width, dirX, dirY, soft, { asymHead: 1.6, asymTail: 1.6 });
 }
 
 /** 宽腹椭圆(wash):大宽幅、弧形腹 */

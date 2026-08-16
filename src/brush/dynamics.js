@@ -165,6 +165,18 @@ export class BrushState {
         }
         if (b.bristle[i] > 0) b.bristle[i] *= k;
       }
+      // 干态纸齿断纹(飞白):gb 高时按纸细颗粒 F 阈值撕裂 pool/毛缘 → 露纸丝状白痕
+      if (gbAvg > 0.25) {
+        const F = eng.paper.F;
+        const thr = 0.85 - 0.5 * gbAvg;
+        for (let i = 0; i < b.pool.length; i++) {
+          if (b.pool[i] <= 0 && b.bristle[i] <= 0) continue;
+          const f = F[i];
+          let keep = f > thr ? 1 : (f > thr - 0.18 ? (f - (thr - 0.18)) / 0.18 : 0);
+          b.pool[i] *= keep;
+          b.bristle[i] *= keep;
+        }
+      }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
       // 每段混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
       if (prov) {
@@ -172,7 +184,7 @@ export class BrushState {
         eng.setPigment(prov.basis(prov, tipFrac));
       }
       eng.depositMask(b.pool, { water: wDep, amount: aAvg * K_AMOUNT });
-      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aAvg * K_AMOUNT * 1.25 }); // 毛缘:少水多色(连续拖痕)
+      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aAvg * K_AMOUNT * 1.6 }); // 毛缘:少水多色(连续拖痕,1.6× 强化双轨)
     }
   }
 

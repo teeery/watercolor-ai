@@ -19,7 +19,7 @@ export class Bristles {
     this.spring = brush.spring ?? 0.7;
     this.kStiff = 0.35;
     this.tau = 0.4;          // splay 迟滞时间常数 s
-    this.kCurl = 8;          // 转向离心系数:毛甩到转角外侧的幅度
+    this.kCurl = 14;         // 转向离心系数:毛甩到转角外侧的幅度
     // 横向偏移均匀分布(确定性;毛的"出身")
     this.b = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) this.b[i] = (i + 0.5) / this.N * 2 - 1;
@@ -34,7 +34,7 @@ export class Bristles {
     for (let i = 0; i < this.N; i++) {
       const b = this.b[i], ab = Math.abs(b);
       switch (shape) {
-        case "flat": this.edgeW[i] = 0.35 + 1.3 * ab * ab; break;
+        case "flat": this.edgeW[i] = 0.15 + 1.7 * ab * ab; break;
         case "round": this.edgeW[i] = 1 - 0.5 * ab; break;
         case "wash": this.edgeW[i] = 1 - 0.8 * ab * ab; break;
         default: this.edgeW[i] = 1; break;

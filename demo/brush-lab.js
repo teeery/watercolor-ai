@@ -185,7 +185,7 @@ function blit(studio, col, row, label) {
   });
   const bs = st.painter.lastBrushState;
   ok("⑨ interleave 触发", bs.interleave === true && bs.interleavedSteps >= 50, `steps=${bs.interleavedSteps}`);
-  st.engine.step(60);
+  st.engine.step(180); // 让前段充分干透(边缘锐利、露纸纹)而后段仍带湿
   blit(st, 2, 2, "⑨ 一笔之内干燥");
 }
 
