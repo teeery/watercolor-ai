@@ -10,7 +10,8 @@ const OUT = "out";
 mkdirSync(OUT, { recursive: true });
 
 const t0 = performance.now();
-const studio = createStudio({ width: 640, height: 480, seed: 3, painterSeed: 11 });
+// QUIESCENT_U=0.02 可开静止短路（约 -35% 模拟耗时；像素级微差，见 docs/medium-upgrade.md M0 记录）
+const studio = createStudio({ width: 640, height: 480, seed: 3, painterSeed: 11, params: { quiescentU: Number(process.env.QUIESCENT_U || 0) } });
 const { engine, apply, render } = studio;
 
 const evoFrames = [];

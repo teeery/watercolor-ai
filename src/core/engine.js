@@ -42,7 +42,22 @@ export class WatercolorEngine {
     this._s2 = new Float32Array(this.n);
     this._s3 = new Float32Array(this.n);
     this._Mb = new Float32Array(this.n);
-    this._T = new Uint8Array(this.n);
+    // M0 性能：活跃集（W>0 的格）+ 反向索引 + 坐标镜像 + 本步新湿格列表（替代 T 数组）
+    this._al = new Uint32Array(this.n);
+    this._alCount = 0;
+    this._alIdx = new Int32Array(this.n).fill(-1);
+    this._alx = new Uint16Array(this.n);
+    this._aly = new Uint16Array(this.n);
+    this._tl = new Uint32Array(this.n);
+    this._tlCount = 0;
+    // 孤儿集：W>0 但在迭代 bbox 之外的格（bbox 版不处理它们，直到 bbox 扩张或尾部蒸发）
+    this._ol = new Uint32Array(this.n);
+    this._olCount = 0;
+    this._olIdx = new Int32Array(this.n).fill(-1);
+    this._olx = new Uint16Array(this.n);
+    this._oly = new Uint16Array(this.n);
+    this._lastMaxU = Infinity;  // 上一步最大流速（静止短路判断用）
+    this._qDirty = true;        // 有新水注入 → 下步强制完整管线
 
     // 默认参数（每步率）
     this.p = {
@@ -60,6 +75,7 @@ export class WatercolorEngine {
       evapEdge: 2.5,    // 边缘蒸发加速
       epsDry: 0.004,    // 冻结阈值
       pigAdv: 0.65,     // 颜料半拉格朗日系数（滞后于水 → 水走前、颜料留后）
+      quiescentU: 0,    // 静止短路阈值：max|u| 低于它则跳过流场+两级平流（0=关，行为保持）
       ...params,
     };
 
@@ -77,6 +93,86 @@ export class WatercolorEngine {
     this.pigment.staining = staining;
   }
 
+  /** 格是否在（已 padding、已钳制到画布的）迭代 bbox 内 */
+  _isInPaddedBBox(x, y) {
+    const b = this._bbox;
+    if (!b.valid) return false;
+    const pad = 2 + this.p.blurR;
+    return x >= Math.max(0, b.x0 - pad) && x <= Math.min(this.w - 1, b.x1 + pad)
+      && y >= Math.max(0, b.y0 - pad) && y <= Math.min(this.h - 1, b.y1 + pad);
+  }
+
+  /** 活跃集维护：W 从 0 变正时入列；bbox 外的格进孤儿集（复刻 bbox 版"不处理"语义） */
+  _pushActive(i) {
+    if (this._alIdx[i] >= 0 || this._olIdx[i] >= 0) return;
+    const x = i % this.w, y = (i / this.w) | 0;
+    if (this._isInPaddedBBox(x, y)) {
+      const s = this._alCount++;
+      this._al[s] = i;
+      this._alIdx[i] = s;
+      this._alx[s] = x;
+      this._aly[s] = y;
+    } else {
+      const s = this._olCount++;
+      this._ol[s] = i;
+      this._olIdx[i] = s;
+      this._olx[s] = x;
+      this._oly[s] = y;
+    }
+  }
+
+  /** 活跃集维护：冻结/蒸干时出列（swap-with-last，O(1)） */
+  _removeActive(i) {
+    const a = this._alIdx, al = this._al;
+    const s = a[i];
+    if (s < 0) return;
+    const last = --this._alCount;
+    if (s !== last) {
+      const j = al[last];
+      al[s] = j;
+      this._alx[s] = this._alx[last];
+      this._aly[s] = this._aly[last];
+      a[j] = s;
+    }
+    a[i] = -1;
+  }
+
+  /** 孤儿集出列（swap-with-last，O(1)） */
+  _removeOrphan(i) {
+    const a = this._olIdx, ol = this._ol;
+    const s = a[i];
+    if (s < 0) return;
+    const last = --this._olCount;
+    if (s !== last) {
+      const j = ol[last];
+      ol[s] = j;
+      this._olx[s] = this._olx[last];
+      this._oly[s] = this._oly[last];
+      a[j] = s;
+    }
+    a[i] = -1;
+  }
+
+  /** bbox 变化（收紧/扩张）后重新分流：孤儿入列、主列格出列 */
+  _resyncBBoxLists() {
+    for (let k = 0; k < this._olCount; k++) {
+      const i = this._ol[k];
+      if (this._isInPaddedBBox(this._olx[k], this._oly[k])) {
+        this._removeOrphan(i);
+        this._pushActive(i);
+        k--;
+      }
+    }
+    for (let k = 0; k < this._alCount; k++) {
+      const i = this._al[k];
+      if (!this._isInPaddedBBox(this._alx[k], this._aly[k])) {
+        this._removeActive(i);
+        this._pushActive(i);
+        k--;
+      }
+    }
+  }
+
   /** 溶液总吸收量（任意通道） */
   solutionTotal(i) {
     let s = 0;
@@ -90,6 +186,7 @@ export class WatercolorEngine {
     const { C, G } = this.paper;
     const K = this.pigment.K;
     const bbox = this._bbox;
+    this._qDirty = true;
     let x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
     for (let y = 0; y < this.h; y++) {
       const row = y * this.w;
@@ -97,7 +194,9 @@ export class WatercolorEngine {
         const i = row + x;
         const m = mask[i];
         if (m <= 0) continue;
+        const w0 = W[i];
         W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
+        if (w0 <= 0 && W[i] > 0) this._pushActive(i);
         const aM = amount * m;
         if (!M[i]) {
           // 新湿格：笔触边界即刻钉出前缘沉积线（水彩标志性深边）
@@ -127,6 +226,7 @@ export class WatercolorEngine {
         if (x1 > bbox.x1) bbox.x1 = x1;
         if (y1 > bbox.y1) bbox.y1 = y1;
       }
+      this._resyncBBoxLists();
     }
   }
 
@@ -135,6 +235,7 @@ export class WatercolorEngine {
   liftMask(mask, { liftP = 0.6, liftD = 0.35, water = 0.3, dir = 0 } = {}) {
     const { w, h, W, P, Pm, D, Dm, ch } = this;
     const ca = Math.cos(dir), sa = Math.sin(dir);
+    this._qDirty = true;
     for (let y = 0; y < h; y++) {
       const row = y * w;
       for (let x = 0; x < w; x++) {
@@ -148,7 +249,9 @@ export class WatercolorEngine {
         const kD = 1 - liftD * m * streak;
         for (let c = 0; c < ch; c++) { P[c][i] *= kP; D[c][i] *= kD; }
         Pm[i] *= kP; Dm[i] *= kD;
+        const w0 = W[i];
         W[i] = Math.min(2.0, W[i] + water * m);
+        if (w0 <= 0 && W[i] > 0) this._pushActive(i);
       }
     }
   }
@@ -313,108 +416,122 @@ export class WatercolorEngine {
     x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
     const hook = this.debugHook;
     const mark = (name) => { if (hook) hook(name, this); };
+    const al = this._al, alx = this._alx, aly = this._aly;
+    const ac = this._alCount; // 阶段 1-8 期间列表不变（出列只发生在阶段 9）
+
+    // ---------- 0) 静止短路（可选；quiescentU=0 时为行为保持模式） ----------
+    const qU = p.quiescentU;
+    const quiescent = qU > 0 && this._lastMaxU < qU && !this._qDirty;
+    this._qDirty = false;
+    let maxU = 0;
 
     // ---------- 1) 流场 ----------
     const kPress = p.kPress, grav = p.gravity;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
+    if (!quiescent) {
+      for (let k = 0; k < ac; k++) {
+        const i = al[k];
         const wv = W[i];
         if (wv <= 1e-4) { ux[i] = 0; uy[i] = 0; continue; }
+        const x = alx[k], y = aly[k];
         const iL = x > 0 ? i - 1 : i, iR = x < w - 1 ? i + 1 : i;
         const iU = y > 0 ? i - w : i, iD = y < h - 1 ? i + w : i;
-        ux[i] = -(W[iR] - W[iL]) * 0.5 * kPress + (G[i] - 0.5) * 0.06 * wv;
-        uy[i] = -(W[iD] - W[iU]) * 0.5 * kPress + grav * wv + (G[i] - 0.5) * 0.05 * wv;
+        const uxv = -(W[iR] - W[iL]) * 0.5 * kPress + (G[i] - 0.5) * 0.06 * wv;
+        const uyv = -(W[iD] - W[iU]) * 0.5 * kPress + grav * wv + (G[i] - 0.5) * 0.05 * wv;
+        ux[i] = uxv; uy[i] = uyv;
+        if (qU > 0) {
+          const au = uxv < 0 ? -uxv : uxv, av = uyv < 0 ? -uyv : uyv;
+          if (au > maxU) maxU = au;
+          if (av > maxU) maxU = av;
+        }
       }
+    } else {
+      for (let k = 0; k < ac; k++) { const i = al[k]; ux[i] = 0; uy[i] = 0; }
     }
 
     // ---------- 2) 水半拉格朗日平流 + 扩散 ----------
     mark("1-flow");
     const adv = p.advCoef, kDiff = p.kDiff;
     const sW = this._s2;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
+    if (!quiescent) {
+      for (let k = 0; k < ac; k++) {
+        const i = al[k];
         const wv = W[i];
         if (wv <= 1e-5) { sW[i] = 0; continue; }
-        let wx = x - ux[i] * adv, wy = y - uy[i] * adv;
-        wx = CLAMP(wx, 0, w - 1.001); wy = CLAMP(wy, 0, h - 1.001);
-        const x0f = wx | 0, y0f = wy | 0, tx = wx - x0f, ty = wy - y0f;
-        const i00 = y0f * w + x0f;
-        const v00 = W[i00], v10 = W[i00 + 1], v01 = W[i00 + w], v11 = W[i00 + w + 1];
-        const a = v00 + (v10 - v00) * tx, b = v01 + (v11 - v01) * tx;
-        let nw = a + (b - a) * ty;
+        let nw;
+        const uvx = ux[i], uvy = uy[i];
+        if (uvx === 0 && uvy === 0) {
+          nw = wv; // u 恰为 0 → 反溯即本格，bilerp ≡ 拷贝（严格等价）
+        } else {
+          const x = alx[k], y = aly[k];
+          let wx = x - uvx * adv, wy = y - uvy * adv;
+          wx = CLAMP(wx, 0, w - 1.001); wy = CLAMP(wy, 0, h - 1.001);
+          const x0f = wx | 0, y0f = wy | 0, tx = wx - x0f, ty = wy - y0f;
+          const i00 = y0f * w + x0f;
+          const v00 = W[i00], v10 = W[i00 + 1], v01 = W[i00 + w], v11 = W[i00 + w + 1];
+          const a = v00 + (v10 - v00) * tx, b = v01 + (v11 - v01) * tx;
+          nw = a + (b - a) * ty;
+        }
+        const x = alx[k], y = aly[k];
         const wL = x > 0 ? W[i - 1] : wv, wR = x < w - 1 ? W[i + 1] : wv;
         const wU = y > 0 ? W[i - w] : wv, wD = y < h - 1 ? W[i + w] : wv;
         const lap = wL + wR + wU + wD - 4 * wv;
         nw += kDiff * lap;
         sW[i] = nw < 0 ? 0 : nw > 2 ? 2 : nw;
       }
-    }
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) W[row + x] = sW[row + x];
+      for (let k = 0; k < ac; k++) { const i = al[k]; W[i] = sW[i]; }
     }
 
     // ---------- 3) 掩码扩张 + 前缘标记 ----------
     mark("2-water");
-    const theta = p.theta, T = this._T;
-    T.fill(0);
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
-        if (!M[i] && W[i] > theta) { M[i] = 1; T[i] = 1; }
-      }
+    const theta = p.theta;
+    this._tlCount = 0;
+    for (let k = 0; k < ac; k++) {
+      const i = al[k];
+      if (!M[i] && W[i] > theta) { M[i] = 1; this._tl[this._tlCount++] = i; }
     }
 
     // ---------- 4) 颜料半拉格朗日平流（每通道） ----------
     mark("3-expand");
     const pigAdv = p.pigAdv;
-    for (let c = 0; c < ch; c++) {
-      const PC = P[c];
-      const sP = this._sP[c];
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) {
-          const i = row + x;
+    if (!quiescent) {
+      for (let c = 0; c < ch; c++) {
+        const PC = P[c];
+        const sP = this._sP[c];
+        for (let k = 0; k < ac; k++) {
+          const i = al[k];
           const pv = PC[i];
           if (pv <= 1e-6) { sP[i] = 0; continue; }
-          let px = x - ux[i] * pigAdv, py = y - uy[i] * pigAdv;
+          const uvx = ux[i], uvy = uy[i];
+          if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
+          const x = alx[k], y = aly[k];
+          let px = x - uvx * pigAdv, py = y - uvy * pigAdv;
           px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
           const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
           const i00 = y0f * w + x0f;
           sP[i] = bilerpAt(PC, i00, tx, ty, w);
         }
+        for (let k = 0; k < ac; k++) { const i = al[k]; PC[i] = sP[i]; }
       }
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) PC[row + x] = sP[row + x];
-      }
-    }
-    // 质量通道同速平流
-    {
-      const sP = this._s2;
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) {
-          const i = row + x;
+      // 质量通道同速平流
+      {
+        const sP = this._s2;
+        for (let k = 0; k < ac; k++) {
+          const i = al[k];
           const pv = Pm[i];
           if (pv <= 1e-6) { sP[i] = 0; continue; }
-          let px = x - ux[i] * pigAdv, py = y - uy[i] * pigAdv;
+          const uvx = ux[i], uvy = uy[i];
+          if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
+          const x = alx[k], y = aly[k];
+          let px = x - uvx * pigAdv, py = y - uvy * pigAdv;
           px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
           const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
           const i00 = y0f * w + x0f;
           sP[i] = bilerpAt(Pm, i00, tx, ty, w);
         }
-      }
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) Pm[row + x] = sP[row + x];
+        for (let k = 0; k < ac; k++) { const i = al[k]; Pm[i] = sP[i]; }
       }
     }
+    this._lastMaxU = maxU; // 静止短路判断用的"上一步流速"
 
     // ---------- 5) 沉积（纸谷偏置 + 细颗粒调制） ----------
     mark("4-pigment");
@@ -422,53 +539,47 @@ export class WatercolorEngine {
     const gran = this.pigment.granulation, stain = this.pigment.staining;
     const depScale = dep * (0.4 + 1.2 * stain);
     const granScale = gran * 1.8;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
-        if (!M[i]) continue;
-        const hb = H[i] - 0.5;
-        const grain = F[i] - 0.5;
-        let k = depScale * (1 + expo * hb) * (1 + granScale * grain);
-        k = k < 0 ? 0 : k > 0.5 ? 0.5 : k;
-        let total = 0;
-        for (let c = 0; c < ch; c++) total += P[c][i];
-        if (total <= 1e-6) continue;
-        for (let c = 0; c < ch; c++) {
-          const pc = P[c][i];
-          D[c][i] += pc * k;
-          P[c][i] = pc * (1 - k);
-        }
-        const pm = Pm[i];
-        Dm[i] += pm * k;
-        Pm[i] = pm * (1 - k);
+    for (let k = 0; k < ac; k++) {
+      const i = al[k];
+      if (!M[i]) continue;
+      const hb = H[i] - 0.5;
+      const grain = F[i] - 0.5;
+      let kk = depScale * (1 + expo * hb) * (1 + granScale * grain);
+      kk = kk < 0 ? 0 : kk > 0.5 ? 0.5 : kk;
+      let total = 0;
+      for (let c = 0; c < ch; c++) total += P[c][i];
+      if (total <= 1e-6) continue;
+      for (let c = 0; c < ch; c++) {
+        const pc = P[c][i];
+        D[c][i] += pc * kk;
+        P[c][i] = pc * (1 - kk);
       }
+      const pm = Pm[i];
+      Dm[i] += pm * kk;
+      Pm[i] = pm * (1 - kk);
     }
 
     // ---------- 6) 前缘沉积 ----------
     mark("5-deposit");
     const fd = p.frontDeposit;
     if (fd > 0) {
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) {
-          const i = row + x;
-          if (!T[i]) continue;
-          let total = 0;
-          for (let c = 0; c < ch; c++) total += P[c][i];
-          if (total <= 1e-6) continue;
-          const grain = G[i] - 0.5;
-          let k = fd * (0.5 + 0.5 * grain);
-          k = k < 0 ? 0 : k > 0.8 ? 0.8 : k;
-          for (let c = 0; c < ch; c++) {
-            const pc = P[c][i];
-            D[c][i] += pc * k;
-            P[c][i] = pc * (1 - k);
-          }
-          const pm = Pm[i];
-          Dm[i] += pm * k;
-          Pm[i] = pm * (1 - k);
+      const tl = this._tl, tc = this._tlCount;
+      for (let t = 0; t < tc; t++) {
+        const i = tl[t];
+        let total = 0;
+        for (let c = 0; c < ch; c++) total += P[c][i];
+        if (total <= 1e-6) continue;
+        const grain = G[i] - 0.5;
+        let kk = fd * (0.5 + 0.5 * grain);
+        kk = kk < 0 ? 0 : kk > 0.8 ? 0.8 : kk;
+        for (let c = 0; c < ch; c++) {
+          const pc = P[c][i];
+          D[c][i] += pc * kk;
+          P[c][i] = pc * (1 - kk);
         }
+        const pm = Pm[i];
+        Dm[i] += pm * kk;
+        Pm[i] = pm * (1 - kk);
       }
     }
 
@@ -476,30 +587,29 @@ export class WatercolorEngine {
     mark("6-front");
     this._blurM(x0, y0, x1, y1, p.blurR);
     const edgeK = p.edgeK, Mb = this._Mb;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
-        if (!M[i]) continue;
-        let e = Mb[i] - (M[i] ? 1 : 0);
-        if (e <= 0.02) continue;
-        e = e > 1 ? 1 : e;
-        const k = edgeK * e;
-        let total = 0;
-        for (let c = 0; c < ch; c++) total += P[c][i];
-        if (total <= 1e-6) continue;
-        for (let c = 0; c < ch; c++) {
-          const pc = P[c][i];
-          D[c][i] += pc * k;
-          P[c][i] = pc * (1 - k);
-        }
-        const pm = Pm[i];
-        Dm[i] += pm * k;
-        Pm[i] = pm * (1 - k);
+    for (let k = 0; k < ac; k++) {
+      const i = al[k];
+      if (!M[i]) continue;
+      let e = Mb[i] - (M[i] ? 1 : 0);
+      if (e <= 0.02) continue;
+      e = e > 1 ? 1 : e;
+      const kk = edgeK * e;
+      let total = 0;
+      for (let c = 0; c < ch; c++) total += P[c][i];
+      if (total <= 1e-6) continue;
+      for (let c = 0; c < ch; c++) {
+        const pc = P[c][i];
+        D[c][i] += pc * kk;
+        P[c][i] = pc * (1 - kk);
       }
+      const pm = Pm[i];
+      Dm[i] += pm * kk;
+      Pm[i] = pm * (1 - kk);
     }
 
     // ---------- 8) 蒸发（边缘先干 + 咖啡环） ----------
+    // 注意：本阶段向邻格 P[c][ii] 原地乘减（跨格写依赖，迭代顺序敏感）→
+    // 必须保持 bbox 栅格序遍历，不能换成活跃集（活跃集顺序会被出列打乱）。
     mark("7-edge");
     const evap = p.evap, evapEdge = p.evapEdge;
     for (let y = y0; y <= y1; y++) {
@@ -521,18 +631,18 @@ export class WatercolorEngine {
             let iy = i + w * Math.round(gy / gl);
             if (y === 0 || y === h - 1) iy = i;
             for (const ii of [ix, iy]) {
-              const k = 0.12 * (e > 1 ? 1 : e);
+              const kk = 0.12 * (e > 1 ? 1 : e);
               let total = 0;
               for (let c = 0; c < ch; c++) total += P[c][ii];
               if (total <= 1e-6) continue;
               for (let c = 0; c < ch; c++) {
                 const pc = P[c][ii];
-                D[c][i] += pc * k;
-                P[c][ii] = pc * (1 - k);
+                D[c][i] += pc * kk;
+                P[c][ii] = pc * (1 - kk);
               }
               const pm = Pm[ii];
-              Dm[i] += pm * k;
-              Pm[ii] = pm * (1 - k);
+              Dm[i] += pm * kk;
+              Pm[ii] = pm * (1 - kk);
             }
           }
         }
@@ -542,37 +652,59 @@ export class WatercolorEngine {
     // ---------- 9) 冻结 ----------
     mark("8-evap");
     const eps = p.epsDry;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * w;
-      for (let x = x0; x <= x1; x++) {
-        const i = row + x;
-        if (W[i] < eps) {
-          if (W[i] > 0) W[i] = 0;
-          let total = 0;
-          for (let c = 0; c < ch; c++) total += P[c][i];
-          if (M[i] && total > 1e-6) {
-            for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
-            Dm[i] += Pm[i]; Pm[i] = 0;
-          }
-          if (M[i]) M[i] = 0;
-        }
+    for (let k = 0; k < this._alCount; k++) {
+      const i = this._al[k];
+      if (W[i] >= eps) continue;
+      if (W[i] > 0) W[i] = 0;
+      let total = 0;
+      for (let c = 0; c < ch; c++) total += P[c][i];
+      if (M[i] && total > 1e-6) {
+        for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
+        Dm[i] += Pm[i]; Pm[i] = 0;
+      }
+      if (M[i]) {
+        // 延迟出列一格：bbox 版的下一步 stage 4 会再处理该干格一次，
+        // 把 ≤1e-6 的溶液残量清零（早退 → sP=0）。留列一格即可逐位复刻。
+        M[i] = 0;
+      } else {
+        // 上一步已冻干的格：残量已被本步 stage 4 清零，此刻出列
+        this._removeActive(i);
+        k--; // 该槽位被队尾元素顶替，需重查
       }
     }
     mark("9-freeze");
   }
 
-  /** 全域尾水蒸发（bbox 失效后使用） */
+  /** 全域尾水蒸发（bbox 失效后使用；主列 + 孤儿集 = {W>0}） */
   _evaporateTail() {
     const { W, P, Pm, D, Dm, p, ch } = this;
     const evap = p.evap, eps = p.epsDry;
-    for (let i = 0; i < this.n; i++) {
+    for (let k = 0; k < this._alCount; k++) {
+      const i = this._al[k];
       const wv = W[i];
-      if (wv <= 0) continue;
+      if (wv <= 0) { this._removeActive(i); k--; continue; }
       const nw = wv * (1 - evap);
       if (nw < eps) {
         W[i] = 0;
         for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
         Dm[i] += Pm[i]; Pm[i] = 0;
+        this._removeActive(i);
+        k--;
+      } else {
+        W[i] = nw;
+      }
+    }
+    for (let k = 0; k < this._olCount; k++) {
+      const i = this._ol[k];
+      const wv = W[i];
+      if (wv <= 0) { this._removeOrphan(i); k--; continue; }
+      const nw = wv * (1 - evap);
+      if (nw < eps) {
+        W[i] = 0;
+        for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
+        Dm[i] += Pm[i]; Pm[i] = 0;
+        this._removeOrphan(i);
+        k--;
       } else {
         W[i] = nw;
       }
@@ -604,21 +736,20 @@ export class WatercolorEngine {
     }
   }
 
-  /** 每 30 步精确重算 bbox */
+  /** 每 30 步精确重算 bbox（扫活跃集而非全画布，等价） */
   _tightenBBox() {
     const { w, h, M } = this;
     let x0 = w, y0 = h, x1 = -1, y1 = -1;
-    for (let y = 0; y < h; y++) {
-      const row = y * w;
-      for (let x = 0; x < w; x++) {
-        if (M[row + x]) {
-          if (x < x0) x0 = x; if (x > x1) x1 = x;
-          if (y < y0) y0 = y; if (y > y1) y1 = y;
-        }
-      }
+    for (let k = 0; k < this._alCount; k++) {
+      const i = this._al[k];
+      if (!M[i]) continue;
+      const x = this._alx[k], y = this._aly[k];
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
     }
     if (x1 >= x0) { this._bbox = { x0, y0, x1, y1, valid: true }; }
     else this._bbox = { x0: 0, y0: 0, x1: 0, y1: 0, valid: false };
+    this._resyncBBoxLists();
   }
 
   /** 全画布还有多少水（干燥判定） */
