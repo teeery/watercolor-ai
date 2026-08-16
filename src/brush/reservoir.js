@@ -111,7 +111,8 @@ export class Reservoir {
   }
 
   /**
-   * 释放一戳(纯函数式更新内部状态)。
+   * 释放一戳(纯函数式更新内部状态)。水与颜料各自独立受接触门控制:
+   * 干笔水干后仍可靠"刮擦"留色——颜料不随水膜缩水(校准 v2.0)。
    * @returns {{dw:number, amount:number, tipShare:number, gb:number}}
    *   tipShare = 本戳释放颜料中 tip 桶占比(charging 混色用:0 = 全 belly 色,1 = 全 tip 色)
    */
@@ -123,30 +124,33 @@ export class Reservoir {
     const exposedW = this.w.tip * f.tip + this.w.belly * f.belly + this.w.heel * f.heel;
     const pTotal = this.totalPigment();
     const exposedP = this.p.tip * f.tip + this.p.belly * f.belly + this.p.heel * f.heel;
-    if (wTotal <= 1e-9 || exposedW <= 1e-9 || p <= 0) return { dw: 0, amount: 0, tipShare: 0, gb: this.grainBreak(v) };
-
-    const contactScale = 0.7 + 0.3 * (exposedW / Math.max(wTotal, 1e-9));
-    let dw = this.wLevel * (1 - Math.exp(-C.kRelease * p * dt)) * contactScale;
-    if (dw > exposedW) dw = exposedW; // 守恒钳:只有接触到的水能释放(未接触桶不可透支)
     const gb = this.grainBreak(v);
-    const fPig = exposedP / Math.max(pTotal, 1e-9);
-    let pRelease = this.aLevel * (dw / this.wLevel) * C.kPig * fPig + C.kDry * this.aLevel * gb * p * fPig;
-    if (pRelease > exposedP) pRelease = exposedP;
-    // tip 桶颜料占比(按接触比例)
-    const tipExposed = this.p.tip * f.tip;
-    const tipShare = exposedP > 1e-9 ? tipExposed / exposedP : 0;
+    if (p <= 0 || (wTotal <= 1e-9 && pTotal <= 1e-9)) return { dw: 0, amount: 0, tipShare: 0, gb };
 
-    // 按各桶贡献比例扣减(钳 0 防浮点负漂)
+    // —— 水:指数释放 + 守恒钳 ——
+    let dw = 0;
     if (exposedW > 1e-9) {
+      const contactScale = 0.7 + 0.3 * (exposedW / Math.max(wTotal, 1e-9));
+      dw = this.wLevel * (1 - Math.exp(-C.kRelease * p * dt)) * contactScale;
+      if (dw > exposedW) dw = exposedW; // 守恒钳:只有接触到的水能释放(未接触桶不可透支)
       for (const k of ["tip", "belly", "heel"]) {
         this.w[k] = Math.max(0, this.w[k] - dw * (this.w[k] * f[k] / exposedW));
       }
     }
+
+    // —— 颜料:装载浓度口径,独立于水;随余量衰减 + 干笔刮擦 ——
+    let pRelease = 0, tipShare = 0;
     if (exposedP > 1e-9) {
+      const fPig = exposedP / Math.max(pTotal, 1e-9);
+      const loadFrac = wTotal / Math.max(this.w0, 1e-9);
+      pRelease = this.aLevel * fPig * (0.4 + 0.5 * loadFrac + 0.3 * gb * p) * C.kPig;
+      if (pRelease > exposedP) pRelease = exposedP;
+      tipShare = (this.p.tip * f.tip) / exposedP;
       for (const k of ["tip", "belly", "heel"]) {
         this.p[k] = Math.max(0, this.p[k] - pRelease * (this.p[k] * f[k] / exposedP));
       }
     }
+
     this.releasedW += dw;
     this.releasedP += pRelease;
     return { dw, amount: pRelease, tipShare, gb };

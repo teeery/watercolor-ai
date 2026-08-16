@@ -147,7 +147,7 @@ export class BrushState {
   _flushBuckets(bucketList) {
     const eng = this.eng;
     const prov = this.pigmentProvider;
-    const K_WATER = 1.8, K_AMOUNT = 1.6; // v2.0 校准:每戳膜厚口径 → legacy 观感尺度
+    const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
     for (const b of bucketList) {
       if (b.n === 0) continue;
       const wAvg = b.wSum / b.n;

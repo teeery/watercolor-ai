@@ -12,7 +12,7 @@ mkdirSync(OUT, { recursive: true });
 
 const CW = 640, CH = 480;          // 单元格(引擎网格)
 const COLS = 3, ROWS = 3;
-const sheet = new Float32Array(CW * CH * 4 * COLS * ROWS);
+const sheet = new Uint8Array(CW * CH * 4 * COLS * ROWS); // RGBA8(与 writePNG 字节步长一致)
 let failures = 0;
 const assertions = [];
 const ok = (name, cond, detail = "") => {
@@ -26,7 +26,7 @@ function makeStudio() {
 
 /** 把一个 studio 的渲染结果放进面板格 (col,row) */
 function blit(studio, col, row, label) {
-  const img = studio.render();
+  const img = studio.render({ upscale: 1 }); // 640×480 网格直出(默认 2× 上采样,面板按网格拼)
   const { data } = img;
   for (let y = 0; y < CH; y++) {
     const sy = row * CH + y;
@@ -184,16 +184,16 @@ function blit(studio, col, row, label) {
 }
 
 // ---------- 产物 ----------
-// 空白自检:面板不能是纯背景色(像素级防回归,v2 校准教训)
+// 空白自检:面板不能是纯背景色(像素级防回归,v2 校准教训;Uint8 口径)
 {
-  let min = Infinity, max = -Infinity, nBg = 0;
+  let min = Infinity, max = -Infinity;
   for (let i = 0; i < sheet.length; i += 4) {
     const v = sheet[i] + sheet[i + 1] + sheet[i + 2];
     if (v < min) min = v;
     if (v > max) max = v;
   }
   const range = max - min;
-  ok("面板非空白(存在笔触像素)", range > 0.3, `sum范围=[${min.toFixed(2)},${max.toFixed(2)}]`);
+  ok("面板非空白(存在笔触像素)", range > 60, `RGBsum范围=[${min},${max}]`);
 }
 writePNG(`${OUT}/brush-lab.png`, sheet, CW * COLS, CH * ROWS);
 import { writeFileSync } from "node:fs";
