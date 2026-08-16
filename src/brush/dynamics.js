@@ -172,7 +172,8 @@ export class BrushState {
         const F = eng.paper.F;
         const w = eng.w, h = eng.h;
         const g = Math.min(1, (gbAvg - 0.15) / 0.85);
-        const thr = 1.05 - 0.7 * g;
+        // 阈值随干度上升:gb=0.15 不裂 → gb=1 时约 85% 断掉、15% 留成丝(越干越疏,单调)
+        const thr = 0.85 * g;
         const dlen = Math.hypot(b.dirX, b.dirY) || 1;
         const ux = b.dirX / dlen, uy = b.dirY / dlen;
         const sx = Math.round(ux), sy = Math.round(uy); // 拉伸采样方向(±1 格)
