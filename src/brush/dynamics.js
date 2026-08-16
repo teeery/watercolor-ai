@@ -137,8 +137,7 @@ export class BrushState {
     const eng = this.eng;
     const prov = this.pigmentProvider;
     const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
-    const covered = this._cover;
-    covered.fill(0);
+    const covered = this._cover; // 跨块持久(本笔内):max-blend 覆盖掩码不随 chunk 重置 → 杀块边界双倍沉积串珠
     // 按路径顺序沉积(笔头定义前缘线),covered mask 做 max-blend:每格只被先到者覆盖一次
     for (const b of segList) {
       if (b.n === 0) continue;
@@ -146,12 +145,13 @@ export class BrushState {
       const aAvg = b.aSum / b.n;
       const wetAvg = b.wetSum / b.n;
       const gbAvg = b.gbSum / b.n;
-      // 毛缘门控:干态涌现(有效毛厚过渡)+ 抑制腹池内部(毛缘只留边缘带)
-      const gbScale = 0.3 + 0.6 * gbAvg;
+      // 毛缘门控:干态涌现(有效毛厚过渡);湿池(低 gb)抑制腹池内部的毛痕,干态(高 gb)毛痕横贯笔腹(排线)
+      const gbScale = 0.25 + 0.75 * gbAvg;
+      const suppressInterior = gbAvg < 0.5;
       for (let i = 0; i < b.bristle.length; i++) {
         const pool = b.pool[i];
         let m = b.bristle[i] * gbScale;
-        if (m > 0 && pool > 0.55) m *= Math.max(0, 1 - (pool - 0.55) * 2.2);
+        if (m > 0 && suppressInterior && pool > 0.55) m *= Math.max(0, 1 - (pool - 0.55) * 2.2);
         b.bristle[i] = m < 0 ? 0 : m > 1 ? 1 : m;
       }
       // max-blend:pool 与 bristle 都只落在未覆盖区
@@ -178,13 +178,15 @@ export class BrushState {
         }
       }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
+      // 颜料随湿纸衰减(湿接湿稀释:叠在湿区的第二笔应更软更淡,而非越叠越暗)
+      const aDep = aAvg * K_AMOUNT * (1 - 0.5 * wetAvg);
       // 每段混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
       if (prov) {
         const tipFrac = b.aSum > 1e-9 ? b.pTipSum / b.aSum : 0;
         eng.setPigment(prov.basis(prov, tipFrac));
       }
-      eng.depositMask(b.pool, { water: wDep, amount: aAvg * K_AMOUNT });
-      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aAvg * K_AMOUNT * 1.6 }); // 毛缘:少水多色(连续拖痕,1.6× 强化双轨)
+      eng.depositMask(b.pool, { water: wDep, amount: aDep });
+      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aDep * 1.6 }); // 毛缘:少水多色(连续拖痕,1.6× 强化双轨)
     }
   }
 
@@ -193,6 +195,7 @@ export class BrushState {
     const eng = this.eng;
     const n = Math.max(1, Math.round(this.totalLen / this.ds));
     this.reservoir.setStrokeLength(n); // 颜料释放率按戳数锚定(满载撑完全笔)
+    this._cover.fill(0); // max-blend 覆盖掩码在本笔开始清零(跨 interleave 块持久)
 
     const stamp = (k) => {
       const s = n === 0 ? 0 : k / n;

@@ -163,7 +163,7 @@ function blit(studio, col, row, label) {
   st.engine.step(6); // 趁湿
   const waterBefore = st.engine.totalWater();
   st.apply({
-    ...wet, load: { water: 0.5, pigment: { color: "#7a3a4a", amount: 0.9 } },
+    ...wet, load: { water: 0.35, pigment: { color: "#7a3a4a", amount: 0.9 } },
     path: [[140, 420], [1180, 420]], motion: { verb: "扫" },
   });
   const bs = st.painter.lastBrushState;
