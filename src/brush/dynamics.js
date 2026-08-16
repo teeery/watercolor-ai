@@ -124,6 +124,7 @@ export class BrushState {
         pool: new Float32Array(this.eng.n),
         bristle: new Float32Array(this.eng.n),
         wSum: 0, aSum: 0, pTipSum: 0, wetSum: 0, gbSum: 0, n: 0,
+        dirX: 0, dirY: 0, // 段内平均笔向(飞白沿笔势拉伸用)
       };
       this.segments.push(seg);
       this._curSeg = seg;
@@ -165,14 +166,25 @@ export class BrushState {
         }
         if (b.bristle[i] > 0) b.bristle[i] *= k;
       }
-      // 干态纸齿断纹(飞白):gb 高时按纸细颗粒 F 阈值撕裂 pool/毛缘 → 露纸丝状白痕
-      if (gbAvg > 0.25) {
+      // 干态纸齿断纹(飞白):gb 渐变门槛(gb 0.15→1 平滑过渡,非开关切换);
+      // F 采样沿段内笔势长距离拉伸(0/4/8 格)→ 丝状/条状枯笔,非各向同性雪花噪
+      if (gbAvg > 0.15) {
         const F = eng.paper.F;
-        const thr = 0.85 - 0.5 * gbAvg;
+        const w = eng.w, h = eng.h;
+        const g = Math.min(1, (gbAvg - 0.15) / 0.85);
+        const thr = 1.05 - 0.7 * g;
+        const dlen = Math.hypot(b.dirX, b.dirY) || 1;
+        const ux = b.dirX / dlen, uy = b.dirY / dlen;
+        const sx = Math.round(ux), sy = Math.round(uy); // 拉伸采样方向(±1 格)
+        const off = sy * w + sx;
         for (let i = 0; i < b.pool.length; i++) {
           if (b.pool[i] <= 0 && b.bristle[i] <= 0) continue;
-          const f = F[i];
-          let keep = f > thr ? 1 : (f > thr - 0.18 ? (f - (thr - 0.18)) / 0.18 : 0);
+          const x = i % w, y = (i / w) | 0;
+          const inb = (xx, yy) => xx >= 0 && xx < w && yy >= 0 && yy < h;
+          const i4 = inb(x + 4 * sx, y + 4 * sy) ? i + 4 * off : i;
+          const i8 = inb(x + 8 * sx, y + 8 * sy) ? i + 8 * off : i4;
+          const f = 0.4 * F[i] + 0.35 * F[i4] + 0.25 * F[i8]; // 沿笔势 8px 条状采样
+          let keep = f > thr ? 1 : (f > thr - 0.2 ? (f - (thr - 0.2)) / 0.2 : 0);
           b.pool[i] *= keep;
           b.bristle[i] *= keep;
         }
@@ -226,7 +238,8 @@ export class BrushState {
         const b = this._segmentFor(dw, amount, tipShare);
         b.wetSum += this.wetnessAt(xi, yi);
         b.gbSum += gb;
-        const soft = Math.max(3, this.ds * 0.8);
+        b.dirX += dx; b.dirY += dy;
+        const soft = Math.max(4, this.ds * 1.4); // 软边带加宽:相邻戳 rim 充分交叠,消弧纹扇贝
         paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
         this.bristles.paintMarks(b.bristle, eng.w, eng.h);
         return { dt, seg: b };

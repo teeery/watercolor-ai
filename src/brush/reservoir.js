@@ -169,8 +169,8 @@ export class Reservoir {
     if (exposedP > 1e-9) {
       const fPig = exposedP / Math.max(pTotal, 1e-9);
       const loadFrac = wTotal / Math.max(this.w0, 1e-9);
-      // 速率锚定:满载时每戳 ≈ pRate·1.05(预算恰好撑完全笔),0.35 地板保证尾部渐淡不断供
-      pRelease = this.pRate * (0.35 + 0.4 * loadFrac + 0.3 * gb * p) * fPig;
+      // 速率锚定且单调递减:满载 ≈ pRate·0.75,余量衰减 0.35 地板(渐淡,绝不越干越浓)
+      pRelease = this.pRate * (0.35 + 0.4 * loadFrac) * fPig;
       if (pRelease > exposedP) pRelease = exposedP;
       tipShare = (this.p.tip * fP.tip) / exposedP;
       for (const k of ["tip", "belly", "heel"]) {
