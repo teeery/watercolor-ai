@@ -27,13 +27,13 @@ export function legacyPressure(s) {
   return (0.30 + 0.70 * mid) * belly;
 }
 
-/** 笔法动词编译表:verb → {pressure:[...], speed: 标量或数组} */
+/** 笔法动词编译表:verb → {pressure:[...], speed: 标量或数组}(带收笔提锋尾降) */
 export const VERBS = {
-  "扫":   { pressure: [0.5, 0.7, 0.5], speed: [0.4, 0.6, 0.4] },  // 湿铺
-  "拖":   { pressure: [0.35, 0.5, 0.3], speed: 0.6 },              // 干皴长线
-  "皴":   { pressure: [0.3, 0.6, 0.2, 0.5, 0.25], speed: 0.7 },    // 树冠纹理
+  "扫":   { pressure: [0.6, 0.7, 0.4], speed: [0.4, 0.6, 0.5] },  // 湿铺
+  "拖":   { pressure: [0.55, 0.5, 0.25], speed: 0.6 },             // 干皴长线
+  "皴":   { pressure: [0.45, 0.6, 0.3, 0.5, 0.2], speed: 0.7 },    // 树冠纹理
   "点":   { pressure: [0.9, 0.0], speed: [0.05, 0.9] },             // 点厾:顿后快离
-  "顿":   { pressure: [0.5, 0.9, 0.5], speed: [0.5, 0.05, 0.7] },   // 犹豫成洼
+  "顿":   { pressure: [0.6, 0.9, 0.45], speed: [0.5, 0.05, 0.7] },  // 犹豫成洼
   "提":   { pressure: [0.5, 0.15], speed: 0.6 },                    // 收笔提尖
   "甩":   { pressure: [0.6, 0.4], speed: [0.9, 1.0] },              // 飞白点串
   "回锋": { pressure: [0.4, 0.5], speed: [0.3, 0.5] },              // 起笔
@@ -81,8 +81,11 @@ export function makeMotion(motion = {}) {
   } else {
     speedPts = [0.5];
   }
+  const baseP = envelopeFromPoints(pressurePts);
+  // 起笔按压:前 6% 笔程压力按 e^{-s/0.06} 递减抬升(真实落笔第一触有按,头部积墨而非苍白)
+  const pressure = (s) => clamp01(baseP(s) * (1 + 0.5 * Math.exp(-s / 0.06)));
   return {
-    pressure: envelopeFromPoints(pressurePts),
+    pressure,
     speed: envelopeFromPoints(speedPts),
     legacy: false,
   };

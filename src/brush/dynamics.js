@@ -146,23 +146,26 @@ export class BrushState {
       const aAvg = b.aSum / b.n;
       const wetAvg = b.wetSum / b.n;
       const gbAvg = b.gbSum / b.n;
-      // 毛缘门控:干态涌现(有效毛厚过渡);湿池(低 gb)抑制腹池内部的毛痕,干态(高 gb)毛痕横贯笔腹(排线)
+      // 毛缘门控:干态涌现(有效毛厚过渡);湿池抑制腹池内部毛痕,干态毛痕横贯笔腹(排线)
+      // 平头笔的排线是其身份:湿态也保留轻微毛痕(抑制门槛更低)
       const gbScale = 0.15 + 0.85 * gbAvg;
-      const suppressInterior = gbAvg < 0.55;
+      const suppressGate = this.brush.shape === "flat" ? 0.3 : 0.55;
+      const suppressInterior = gbAvg < suppressGate;
       for (let i = 0; i < b.bristle.length; i++) {
         const pool = b.pool[i];
         let m = b.bristle[i] * gbScale;
         if (m > 0 && suppressInterior && pool > 0.55) m *= Math.max(0, 1 - (pool - 0.55) * 2.2);
         b.bristle[i] = m < 0 ? 0 : m > 1 ? 1 : m;
       }
-      // max-blend:pool 与 bristle 都只落在未覆盖区
+      // 加性封顶 max-blend:covered 累积 Σpool(封顶 1)——rim 带里多戳的覆盖加起来恰好 ≈1,
+      // 每格总沉积 ≈ 一次足量,量档随覆盖顺序平滑混合(头淡中浓的 5× 累积 bug 在此修复)
       for (let i = 0; i < b.pool.length; i++) {
         const c = covered[i];
         if (c >= 1) { b.pool[i] = 0; b.bristle[i] = 0; continue; }
         const k = 1 - c;
         if (b.pool[i] > 0) {
           b.pool[i] *= k;
-          if (b.pool[i] > covered[i]) covered[i] = b.pool[i];
+          covered[i] = Math.min(1, covered[i] + b.pool[i]);
         }
         if (b.bristle[i] > 0) b.bristle[i] *= k;
       }
@@ -186,20 +189,24 @@ export class BrushState {
           const i8 = inb(x + 8 * sx, y + 8 * sy) ? i + 8 * off : i4;
           const f = 0.4 * F[i] + 0.35 * F[i4] + 0.25 * F[i8]; // 沿笔势 8px 条状采样
           let keep = f > thr ? 1 : (f > thr - 0.2 ? (f - (thr - 0.2)) / 0.2 : 0);
+          // 只撕腹池:毛缘拖痕保持丝状(排线/双轨是干笔的身份,不能被噪声撕掉)
           b.pool[i] *= keep;
-          b.bristle[i] *= keep;
         }
       }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
       // 颜料随湿纸衰减(湿接湿稀释:叠在湿区的第二笔应更软更淡,而非越叠越暗)
-      const aDep = aAvg * K_AMOUNT * (1 - 0.5 * wetAvg);
+      let aDep = aAvg * K_AMOUNT * (1 - 0.5 * wetAvg);
+      // 平头笔腹池量降 25%:两侧毛缘轨成为主载色 → 双轨"中浅边深"的密度函数落地
+      if (this.brush.shape === "flat") aDep *= 0.75;
       // 每段混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
       if (prov) {
         const tipFrac = b.aSum > 1e-9 ? b.pTipSum / b.aSum : 0;
         eng.setPigment(prov.basis(prov, tipFrac));
       }
       eng.depositMask(b.pool, { water: wDep, amount: aDep });
-      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aDep * 1.6 }); // 毛缘:少水多色(连续拖痕,1.6× 强化双轨)
+      // 毛缘:少水多色(连续拖痕);平头笔毛缘倍率更高 → 两侧轨边对比突出(双轨)
+      const trailK = this.brush.shape === "flat" ? 2.4 : 1.6;
+      eng.depositMask(b.bristle, { water: wDep * 0.3, amount: aDep * trailK });
     }
   }
 

@@ -66,8 +66,8 @@ export class Reservoir {
     const pBudget = cap * 0.9; // 颜料预算 ≈ 水预算 ×0.9
     this.p0 = pBudget;
     this.p = {
-      // tip 桶:无 tip 蘸色 = 均匀悬浮(tipFrac);有 tip 蘸色 = 浓度按 pTip/pMain 缩放(只乘一次 tipFrac)
-      tip: (pTip / pMain) * pBudget * (load.tip ? C.tipFrac : 1),
+      // tip 桶:无 tip 蘸色 = 均匀悬浮(tipFrac);有 tip 蘸色 = 份额提至 0.35(charging 渐变铺满前 1/3 笔程)
+      tip: (pTip / pMain) * pBudget * (load.tip ? 0.35 : 1),
       belly: pBudget * C.bellyFrac,
       heel: pBudget * C.heelFrac,
     };
@@ -80,11 +80,19 @@ export class Reservoir {
     this.releasedP = 0;
     this.wickedW = 0;
     this.pRate = pBudget / 60; // 每戳颜料基准速率(默认 60 戳口径;dynamics 会按实际戳数锚定)
+    this._stamps = 0;          // 已发射戳数(起笔 burst 用)
   }
 
-  /** 按笔画戳数锚定颜料释放率:满载颜料要撑完全笔,尾部渐淡而非断供 */
+  /** 按笔画戳数锚定释放率:颜料与水的预算都按"一笔 ≈ 预算的 0.7-1.0"口径,
+   *  满载颜料撑完全笔、尾部渐淡;水在尾部自然枯竭(gb 涌现)而非全程湿 */
   setStrokeLength(nStamps) {
     this.pRate = this.pInit / Math.max(1, nStamps);
+    const wTarget = this.wLevel * nStamps * 0.6;
+    if (this.w0 > wTarget) {
+      const s = wTarget / this.w0;
+      this.w.tip *= s; this.w.belly *= s; this.w.heel *= s;
+      this.w0 = wTarget;
+    }
   }
 
   totalWater() { return this.w.tip + this.w.belly + this.w.heel; }
@@ -149,7 +157,9 @@ export class Reservoir {
     // —— 水:指数释放 + 守恒钳 ——
     let dw = 0;
     if (exposedW > 1e-9) {
-      const contactScale = 0.7 + 0.3 * (exposedW / Math.max(wTotal, 1e-9));
+      let contactScale = 0.7 + 0.3 * (exposedW / Math.max(wTotal, 1e-9));
+      // 起笔 burst:前 3 戳接触加倍(起笔水珠,签名 #6——真实落笔第一触留下湿珠)
+      if (this._stamps < 3) contactScale = Math.min(1.35, contactScale * 1.6);
       dw = this.wLevel * (1 - Math.exp(-C.kRelease * p * dt)) * contactScale;
       if (dw > exposedW) dw = exposedW; // 守恒钳:只有接触到的水能释放(未接触桶不可透支)
       for (const k of ["tip", "belly", "heel"]) {
@@ -180,6 +190,7 @@ export class Reservoir {
 
     this.releasedW += dw;
     this.releasedP += pRelease;
+    this._stamps++;
     return { dw, amount: pRelease, tipShare, gb };
   }
 
