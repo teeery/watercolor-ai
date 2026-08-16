@@ -107,6 +107,7 @@ export class BrushState {
     this.bucketKeys = [];
     this.bucketOrder = [];     // key → 首次出现序
     this._bucketIdx = new Map();
+    this._cover = new Float32Array(engine.n); // max-blend 覆盖掩码(消量档重叠累积)
     this.stamps = 0;
     this.interleavedSteps = 0;
     this.tipReleasedTotal = 0; // charging 记账(跨 interleave 块累计)
@@ -148,13 +149,13 @@ export class BrushState {
     const eng = this.eng;
     const prov = this.pigmentProvider;
     const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
-    for (const b of bucketList) {
-      if (b.n === 0) continue;
-      if (this.debugFlush) {
-        let nz = 0;
-        for (let i = 0; i < b.pool.length; i++) if (b.pool[i] > 0) nz++;
-        console.log("[flush] key=", b.key, "n=", b.n, "aAvg=", (b.aSum / b.n).toFixed(4), "poolNz=", nz);
-      }
+    const covered = this._cover;
+    covered.fill(0);
+    // max-blend:按 amount 降序沉积,每格只被最高档覆盖一次(杀"量档重叠累积"串珠;
+    // 顺带最高档=笔头,先沉积 → 前缘线由笔头定义 ✓)
+    const sorted = [...bucketList].filter((b) => b.n > 0)
+      .sort((x, y) => (y.aSum / y.n) - (x.aSum / x.n));
+    for (const b of sorted) {
       const wAvg = b.wSum / b.n;
       const aAvg = b.aSum / b.n;
       const wetAvg = b.wetSum / b.n;
@@ -166,6 +167,17 @@ export class BrushState {
         let m = b.bristle[i] * gbScale;
         if (m > 0 && pool > 0.55) m *= Math.max(0, 1 - (pool - 0.55) * 2.2);
         b.bristle[i] = m < 0 ? 0 : m > 1 ? 1 : m;
+      }
+      // max-blend:pool 与 bristle 都只落在未覆盖区
+      for (let i = 0; i < b.pool.length; i++) {
+        const c = covered[i];
+        if (c >= 1) { b.pool[i] = 0; b.bristle[i] = 0; continue; }
+        const k = 1 - c;
+        if (b.pool[i] > 0) {
+          b.pool[i] *= k;
+          if (b.pool[i] > covered[i]) covered[i] = b.pool[i];
+        }
+        if (b.bristle[i] > 0) b.bristle[i] *= k;
       }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
       // 每桶混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
