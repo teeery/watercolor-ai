@@ -4,7 +4,7 @@ export function compositePlanes(eng, colorSystem, {
   paperColor = [0.99, 0.975, 0.94],
   wetDarken = 0.07,
   grainShade = 0.10,
-  edgeDarken = 0.38,
+  edgeDarken = 0.12, // M1：模拟侧边缘加深（stage 7/8 bugfix）已生效，渲染侧降权防"灰色铅笔线"（vision 终审意见）
   edgeBlur = 4,
   granShade = 0.22,
 } = {}) {

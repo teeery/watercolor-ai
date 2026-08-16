@@ -50,6 +50,9 @@ export class WatercolorEngine {
     this._aly = new Uint16Array(this.n);
     this._tl = new Uint32Array(this.n);
     this._tlCount = 0;
+    // M1 σ 钉扎 scratch：depositMask 中被钉扎的格 + 其 mask 值
+    this._pinBuf = new Uint32Array(this.n);
+    this._pinM = new Float32Array(this.n);
     // 孤儿集：W>0 但在迭代 bbox 之外的格（bbox 版不处理它们，直到 bbox 扩张或尾部蒸发）
     this._ol = new Uint32Array(this.n);
     this._olCount = 0;
@@ -76,6 +79,20 @@ export class WatercolorEngine {
       epsDry: 0.004,    // 冻结阈值
       pigAdv: 0.65,     // 颜料半拉格朗日系数（滞后于水 → 水走前、颜料留后）
       quiescentU: 0,    // 静止短路阈值：max|u| 低于它则跳过流场+两级平流（0=关，行为保持）
+      anisoDiff: 0.25,  // M1：扩散各向异性（辅助机制；MoXi 主机制是 σ 钉扎 + κ 变渗透率）
+      kFib: 0.1,        // M1：流场沿纤维耦合（辅助，防"木纹滤镜"）
+      kSlope: 0.4,      // M1：纸坡 ∇H 入流场（Montesdeoca 指针①，替换 G 噪声扰动）
+      kappaG: 0.35,     // M1：κ 变渗透率的纸纹分量
+      kappaF: 0.3,      // M1：κ 的固着堵塞反馈分量（沉积多 → 渗透率低 → 分支纹）
+      sigma0: 0.08,     // M1：σ 钉扎基阈（0 = 关钉扎）
+      sigmaG: 0.05,     // M1：σ 的纸纹分量
+      sigmaP: 0.06,     // M1：σ 的颜料密度分量（重湿处更钉）
+      sigmaL: 0.03,     // M1：σ 的沿纤维线段纹理分量
+      hindrance: 0.5,   // M1：阻滞强度（颜料横纤维流速打折 → 方向颗粒/沉积断裂的物理版）
+      hindRange: 0.5,   // M1：阻滞随 |u| 上升的平滑区间
+      fixRate: 0.5,     // M1：渐变固着率/步（MoXi SIMULATEFIXTURE，替换二值冻结）
+      capLam: 3.0,      // M1：容纸度 max(1−ρ/λ, m) 的 λ
+      capMin: 0.35,     // M1：容纸度的下限 m
       ...params,
     };
 
@@ -180,28 +197,55 @@ export class WatercolorEngine {
     return s;
   }
 
-  /** 沉积注入：mask 为 [0,1] Float32Array（已含形状与软边），water 0..1，amount 颜料质量 */
+  /** M1 σ 钉扎阈值（MoXi §5.3.3 式9 的落地）：
+   *  σ = σ0 + σg·(G−0.5)·2 + σp·min(1, Ptotal·0.5) + σl·(沿纤维线段噪声−0.5)·2 */
+  _sigmaAt(i) {
+    const { G, Tx, Ty } = this.paper;
+    const p = this.p;
+    let pt = 0;
+    for (let c = 0; c < this.ch; c++) pt += this.P[c][i];
+    const x = i % this.w, y = (i / this.w) | 0;
+    const a = x * Tx[i] + y * Ty[i], b = -x * Ty[i] + y * Tx[i];
+    const line = valueNoise2D(a * 0.04 + 2.7, b * 0.35, 61);
+    return p.sigma0 + p.sigmaG * (G[i] - 0.5) * 2 + p.sigmaP * Math.min(1, pt * 0.5) + p.sigmaL * (line - 0.5) * 2;
+  }
+
+  /** 沉积注入：mask 为 [0,1] Float32Array（已含形状与软边），water 0..1，amount 颜料质量
+   *  M1：新湿格受 σ 钉扎（低水/高钉扎区前沿回退 → 毛边），钉扎格可沿纤维爬行润湿 */
   depositMask(mask, { water = 0.5, amount = 0.8 } = {}) {
-    const { W, P, Pm, D, Dm, M, ch } = this;
-    const { C, G } = this.paper;
+    const { w, h, W, P, Pm, D, Dm, M, ch } = this;
+    const { C, G, Tx, Ty } = this.paper;
     const K = this.pigment.K;
     const bbox = this._bbox;
+    const p = this.p;
     this._qDirty = true;
-    let x0 = this.w, y0 = this.h, x1 = -1, y1 = -1;
-    for (let y = 0; y < this.h; y++) {
-      const row = y * this.w;
-      for (let x = 0; x < this.w; x++) {
+    const pinBuf = this._pinBuf, pinM = this._pinM;
+    let pinCount = 0;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
         const i = row + x;
         const m = mask[i];
         if (m <= 0) continue;
-        const w0 = W[i];
-        W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
-        if (w0 <= 0 && W[i] > 0) this._pushActive(i);
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
         const aM = amount * m;
         if (!M[i]) {
+          // M1 σ 钉扎：局部水量低于钉扎阈值 → 前沿回退（毛边/锯齿前沿的成因）
+          const wAdd = water * m * (0.3 + 0.9 * C[i]);
+          if (p.sigma0 > 0 && wAdd < this._sigmaAt(i)) {
+            pinBuf[pinCount] = i;
+            pinM[pinCount] = m;
+            pinCount++;
+            continue;
+          }
+          const w0 = W[i];
+          W[i] = Math.min(2.0, W[i] + wAdd);
+          if (w0 <= 0 && W[i] > 0) this._pushActive(i);
           // 新湿格：笔触边界即刻钉出前缘沉积线（水彩标志性深边）
           const grain = G[i] - 0.5;
-          const fk = this.p.frontDeposit * (0.6 + 0.8 * grain);
+          const fk = p.frontDeposit * (0.6 + 0.8 * grain);
           for (let c = 0; c < ch; c++) {
             const aK = K[c] * aM;
             D[c][i] += aK * fk;
@@ -211,12 +255,43 @@ export class WatercolorEngine {
           Pm[i] += aM * (1 - fk);
           M[i] = 1;
         } else {
+          const w0 = W[i];
+          W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
+          if (w0 <= 0 && W[i] > 0) this._pushActive(i);
           for (let c = 0; c < ch; c++) P[c][i] += K[c] * aM;
           Pm[i] += aM;
         }
-        if (x < x0) x0 = x; if (x > x1) x1 = x;
-        if (y < y0) y0 = y; if (y > y1) y1 = y;
       }
+    }
+    // M1 毛细爬行：钉扎格沿纤维方向的邻格已湿 → 爬行润湿（方向性 toe/分支）
+    for (let t = 0; t < pinCount; t++) {
+      const i = pinBuf[t];
+      const m = pinM[t];
+      const x = i % w, y = (i / w) | 0;
+      const fx = Math.abs(Tx[i]) >= Math.abs(Ty[i]);
+      const dx = fx ? (Tx[i] >= 0 ? 1 : -1) : 0;
+      const dy = fx ? 0 : (Ty[i] >= 0 ? 1 : -1);
+      let crawled = false;
+      for (const sgn of [1, -1]) {
+        const nx = x + dx * sgn, ny = y + dy * sgn;
+        if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+        if (M[ny * w + nx]) { crawled = true; break; }
+      }
+      if (!crawled) continue;
+      const w0 = W[i];
+      W[i] = Math.min(2.0, W[i] + water * m * (0.3 + 0.9 * C[i]));
+      if (w0 <= 0 && W[i] > 0) this._pushActive(i);
+      const aM = amount * m;
+      const grain = G[i] - 0.5;
+      const fk = p.frontDeposit * (0.6 + 0.8 * grain);
+      for (let c = 0; c < ch; c++) {
+        const aK = K[c] * aM;
+        D[c][i] += aK * fk;
+        P[c][i] += aK * (1 - fk);
+      }
+      Dm[i] += aM * fk;
+      Pm[i] += aM * (1 - fk);
+      M[i] = 1;
     }
     if (x1 >= x0) {
       if (!bbox.valid) { bbox.x0 = x0; bbox.y0 = y0; bbox.x1 = x1; bbox.y1 = y1; bbox.valid = true; }
@@ -401,7 +476,7 @@ export class WatercolorEngine {
 
   _stepOnce() {
     const { w, h, n, W, P, Pm, D, Dm, M, ux, uy, p, paper, ch } = this;
-    const { H, G, F } = paper;
+    const { H, G, F, Tx, Ty } = paper;
     this.stepCount++;
 
     if (this._bbox.valid && this.stepCount % 30 === 0) this._tightenBBox();
@@ -426,7 +501,10 @@ export class WatercolorEngine {
     let maxU = 0;
 
     // ---------- 1) 流场 ----------
+    // M1：压力项 × κ 变渗透率（MoXi：沉积多 → 渗透率低 → 分支纹）；
+    //     G 噪声扰动 → 纸坡 ∇H（Montesdeoca 指针①）；小量沿纤维耦合（辅助）
     const kPress = p.kPress, grav = p.gravity;
+    const kSlope = p.kSlope, kFib = p.kFib, kappaG = p.kappaG, kappaF = p.kappaF;
     if (!quiescent) {
       for (let k = 0; k < ac; k++) {
         const i = al[k];
@@ -435,8 +513,15 @@ export class WatercolorEngine {
         const x = alx[k], y = aly[k];
         const iL = x > 0 ? i - 1 : i, iR = x < w - 1 ? i + 1 : i;
         const iU = y > 0 ? i - w : i, iD = y < h - 1 ? i + w : i;
-        const uxv = -(W[iR] - W[iL]) * 0.5 * kPress + (G[i] - 0.5) * 0.06 * wv;
-        const uyv = -(W[iD] - W[iU]) * 0.5 * kPress + grav * wv + (G[i] - 0.5) * 0.05 * wv;
+        const kap = 1 + kappaG * (G[i] - 0.5) * 2 - kappaF * Math.min(1, Dm[i] * 1.5);
+        const kk = kap < 0.2 ? 0.2 : kap > 1.5 ? 1.5 : kap;
+        let uxv = -(W[iR] - W[iL]) * 0.5 * kPress * kk - (H[iR] - H[iL]) * 0.5 * kSlope * wv;
+        let uyv = -(W[iD] - W[iU]) * 0.5 * kPress * kk + grav * wv - (H[iD] - H[iU]) * 0.5 * kSlope * wv;
+        if (kFib > 0) {
+          const tdot = uxv * Tx[i] + uyv * Ty[i];
+          uxv += tdot * Tx[i] * kFib;
+          uyv += tdot * Ty[i] * kFib;
+        }
         ux[i] = uxv; uy[i] = uyv;
         if (qU > 0) {
           const au = uxv < 0 ? -uxv : uxv, av = uyv < 0 ? -uyv : uyv;
@@ -474,8 +559,20 @@ export class WatercolorEngine {
         const x = alx[k], y = aly[k];
         const wL = x > 0 ? W[i - 1] : wv, wR = x < w - 1 ? W[i + 1] : wv;
         const wU = y > 0 ? W[i - w] : wv, wD = y < h - 1 ? W[i + w] : wv;
-        const lap = wL + wR + wU + wD - 4 * wv;
-        nw += kDiff * lap;
+        // M1：扩散 × κ 变渗透率；各向异性仅作辅助（anisoDiff 小，防木纹滤镜）
+        const aniso = p.anisoDiff;
+        const kap = 1 + p.kappaG * (G[i] - 0.5) * 2 - p.kappaF * Math.min(1, Dm[i] * 1.5);
+        const kk = kap < 0.2 ? 0.2 : kap > 1.5 ? 1.5 : kap;
+        let lap;
+        if (aniso > 0) {
+          const ax = Tx[i] * Tx[i];
+          const wxA = 1 + aniso * (2 * ax - 1);
+          const wyA = 1 + aniso * (2 * (1 - ax) - 1);
+          lap = (wL + wR) * wxA + (wU + wD) * wyA - 2 * (wxA + wyA) * wv;
+        } else {
+          lap = wL + wR + wU + wD - 4 * wv;
+        }
+        nw += kDiff * kk * lap;
         sW[i] = nw < 0 ? 0 : nw > 2 ? 2 : nw;
       }
       for (let k = 0; k < ac; k++) { const i = al[k]; W[i] = sW[i]; }
@@ -493,7 +590,23 @@ export class WatercolorEngine {
     // ---------- 4) 颜料半拉格朗日平流（每通道） ----------
     mark("3-expand");
     const pigAdv = p.pigAdv;
+    const hind = p.hindrance, hindRange = p.hindRange;
     if (!quiescent) {
+      // M1 阻滞因子每格预计算一次（hypot 昂贵，勿进通道循环）；_s3 阶段 7 前空闲
+      const advEffArr = this._s3;
+      if (hind > 0) {
+        const TxP = paper.Tx, TyP = paper.Ty;
+        for (let k = 0; k < ac; k++) {
+          const i = al[k];
+          const uvx = ux[i], uvy = uy[i];
+          if (uvx === 0 && uvy === 0) { advEffArr[i] = pigAdv; continue; }
+          const um = Math.sqrt(uvx * uvx + uvy * uvy);
+          const t = um / hindRange;
+          const s = t >= 1 ? 1 : t <= 0 ? 0 : t * t * (3 - 2 * t);
+          const cross = Math.abs(TxP[i] * (uvy / um) - TyP[i] * (uvx / um));
+          advEffArr[i] = pigAdv * (1 - hind * s * cross);
+        }
+      }
       for (let c = 0; c < ch; c++) {
         const PC = P[c];
         const sP = this._sP[c];
@@ -504,7 +617,8 @@ export class WatercolorEngine {
           const uvx = ux[i], uvy = uy[i];
           if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
           const x = alx[k], y = aly[k];
-          let px = x - uvx * pigAdv, py = y - uvy * pigAdv;
+          const advEff = hind > 0 ? advEffArr[i] : pigAdv;
+          let px = x - uvx * advEff, py = y - uvy * advEff;
           px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
           const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
           const i00 = y0f * w + x0f;
@@ -512,7 +626,7 @@ export class WatercolorEngine {
         }
         for (let k = 0; k < ac; k++) { const i = al[k]; PC[i] = sP[i]; }
       }
-      // 质量通道同速平流
+      // 质量通道同速平流（同阻滞）
       {
         const sP = this._s2;
         for (let k = 0; k < ac; k++) {
@@ -522,7 +636,8 @@ export class WatercolorEngine {
           const uvx = ux[i], uvy = uy[i];
           if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
           const x = alx[k], y = aly[k];
-          let px = x - uvx * pigAdv, py = y - uvy * pigAdv;
+          const advEff = hind > 0 ? advEffArr[i] : pigAdv;
+          let px = x - uvx * advEff, py = y - uvy * advEff;
           px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
           const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
           const i00 = y0f * w + x0f;
@@ -533,19 +648,23 @@ export class WatercolorEngine {
     }
     this._lastMaxU = maxU; // 静止短路判断用的"上一步流速"
 
-    // ---------- 5) 沉积（纸谷偏置 + 细颗粒调制） ----------
+    // ---------- 5) 沉积（纸谷偏置 + 细颗粒调制 + 容纸度） ----------
     // Curtis 1997 §4.5：吸附 ∝ (1 − σ·h)，h 为纸高 → 谷多吸附、峰少吸附（bugfix：原 +hb 符号反）
+    // M1 容纸度（MoXi §5.2）：max(1−ρ/λ, m)，湿区低吸 → 浅边晕
     mark("4-pigment");
     const dep = p.deposit, expo = p.exposure;
     const gran = this.pigment.granulation, stain = this.pigment.staining;
     const depScale = dep * (0.4 + 1.2 * stain);
     const granScale = gran * 1.8;
+    const capLam = p.capLam, capMin = p.capMin;
     for (let k = 0; k < ac; k++) {
       const i = al[k];
       if (!M[i]) continue;
       const hb = H[i] - 0.5;
       const grain = F[i] - 0.5;
       let kk = depScale * (1 - expo * hb) * (1 + granScale * grain);
+      const cap = 1 - W[i] / capLam;
+      kk *= cap > capMin ? cap : capMin;
       kk = kk < 0 ? 0 : kk > 0.5 ? 0.5 : kk;
       let total = 0;
       for (let c = 0; c < ch; c++) total += P[c][i];
@@ -657,22 +776,29 @@ export class WatercolorEngine {
     // ---------- 9) 冻结 ----------
     mark("8-evap");
     const eps = p.epsDry;
+    const fixR = p.fixRate;
     for (let k = 0; k < this._alCount; k++) {
       const i = this._al[k];
       if (W[i] >= eps) continue;
       if (W[i] > 0) W[i] = 0;
+      if (M[i]) M[i] = 0;
       let total = 0;
       for (let c = 0; c < ch; c++) total += P[c][i];
-      if (M[i] && total > 1e-6) {
-        for (let c = 0; c < ch; c++) { D[c][i] += P[c][i]; P[c][i] = 0; }
-        Dm[i] += Pm[i]; Pm[i] = 0;
-      }
-      if (M[i]) {
-        // 延迟出列一格：bbox 版的下一步 stage 4 会再处理该干格一次，
-        // 把 ≤1e-6 的溶液残量清零（早退 → sP=0）。留列一格即可逐位复刻。
-        M[i] = 0;
+      if (total > 0.02) {
+        // M1 渐变固着（MoXi SIMULATEFIXTURE）：每步固着一部分，颜料随纤维滞留数步
+        // （干格仍在列表内，u=0 原地不动，逐step P→D）
+        for (let c = 0; c < ch; c++) {
+          const mv = P[c][i] * fixR;
+          D[c][i] += mv;
+          P[c][i] -= mv;
+        }
+        const mm = Pm[i] * fixR;
+        Dm[i] += mm;
+        Pm[i] -= mm;
       } else {
-        // 上一步已冻干的格：残量已被本步 stage 4 清零，此刻出列
+        // 固着完成：清零残量（≤0.02 的尾巴对渲染无感）并出列
+        for (let c = 0; c < ch; c++) P[c][i] = 0;
+        Pm[i] = 0;
         this._removeActive(i);
         k--; // 该槽位被队尾元素顶替，需重查
       }
