@@ -106,6 +106,8 @@ export class WatercolorEngine {
       gravRun: 0,      // M4：重力淌色强度（0=关；高含水区向下淌流 + 沿 x 的纵向通道噪声 → 滴流/淌痕）
       runW0: 0.2,      // M4：淌色触发水量阈值（低阈值 → 淌动窗口更长）
       dripThresh: 0.10, // M4：滴流推进阈值（底部水压 × 通道噪声 > 阈值 → 前沿向下推一格）
+      diffusion: 0.02,  // M5：颜料溶液扩散基率（湿中混色互渗；×每颜料 diffusivity）
+      massLag: 0.35,    // M5：粒重平流滞后强度（重颜料走得慢 → 分离）
       ...params,
     };
 
@@ -116,11 +118,17 @@ export class WatercolorEngine {
     this.debugHook = null; // (stageName, engine) => void
   }
 
-  /** K：单位质量的每通道吸收系数（由 ColorSystem.pigmentBasis 提供）；granulation/staining 0..1 */
-  setPigment({ K, granulation = 0.5, staining = 0.5 }) {
+  /** K：单位质量的每通道吸收系数（由 ColorSystem.pigmentBasis 提供）；granulation/staining 0..1
+   *  M5：物性四字段 transparency/rewetRate/diffusivity/mass——
+   *  未提供时按 granulation/staining 推导（颜料库数据化后可直接传入覆盖，替换缝在此） */
+  setPigment({ K, granulation = 0.5, staining = 0.5, transparency, rewetRate, diffusivity, mass } = {}) {
     this.pigment.K.set(K);
     this.pigment.granulation = granulation;
     this.pigment.staining = staining;
+    this.pigment.transparency = transparency ?? Math.max(0, Math.min(1, 1 - staining * 0.7 - granulation * 0.2));
+    this.pigment.rewetRate = rewetRate ?? 0.35 + 0.55 * (1 - staining);
+    this.pigment.diffusivity = diffusivity ?? 0.3 + 0.5 * (1 - staining);
+    this.pigment.mass = mass ?? 0.3 + 0.6 * granulation;
   }
 
   /** 格是否在（已 padding、已钳制到画布的）迭代 bbox 内 */
@@ -556,16 +564,17 @@ export class WatercolorEngine {
         if (d >= Rθ) continue;
         const nz = (F[i] - 0.5) * 1.6;
         const k = 0.45 * (0.7 + 0.6 * nz);
+        const kD = k * (0.3 + 1.4 * this.pigment.rewetRate); // M5：再湿率——高重湿颜料沉积层易被重新溶解
         const mv = new Array(ch);
         let total = 0;
         for (let c = 0; c < ch; c++) {
-          const pc = _sP[c][i] * k, dc = D[c][i] * k;
+          const pc = _sP[c][i] * k, dc = D[c][i] * kD;
           P[c][i] = _sP[c][i] - pc;
           D[c][i] -= dc;
           mv[c] = (pc + dc) * 0.9;
           total += mv[c];
         }
-        const pmv = Pm[i] * k, dmv = Dm[i] * k;
+        const pmv = Pm[i] * k, dmv = Dm[i] * kD;
         Pm[i] -= pmv; Dm[i] -= dmv;
         const mm = (pmv + dmv) * 0.9;
         if (total <= 1e-6) continue;
@@ -801,12 +810,13 @@ export class WatercolorEngine {
         const frac = move / head;
         W[below] = Math.min(2, W[below] + move);
         W[src] -= move;
+        const fracC = frac * (1 - 0.4 * this.pigment.mass); // M5：滴流转移按粒重打折——重颜料少被带走（分离）
         for (let c = 0; c < ch; c++) {
-          const pc = P[c][src] * frac;
+          const pc = P[c][src] * fracC;
           P[c][below] += pc;
           P[c][src] -= pc;
         }
-        const pm = Pm[src] * frac;
+        const pm = Pm[src] * fracC;
         Pm[below] += pm; Pm[src] -= pm;
         M[below] = 1;
         // 扩展 bbox 使其不落入孤儿集
@@ -822,38 +832,62 @@ export class WatercolorEngine {
     mark("3-expand");
     const pigAdv = p.pigAdv;
     const hind = p.hindrance, hindRange = p.hindRange;
+    const diffBase = p.diffusion;
+    const massLag = p.massLag;
+    const pig = this.pigment;
     if (!quiescent) {
       // M1 阻滞因子每格预计算一次（hypot 昂贵，勿进通道循环）；_s3 阶段 7 前空闲
+      // M5：粒重平流滞后一并折入（重颜料走得慢 → 分离）
       const advEffArr = this._s3;
-      if (hind > 0) {
+      const lag = 1 - massLag * pig.mass;
+      if (hind > 0 || massLag > 0) {
         const TxP = paper.Tx, TyP = paper.Ty;
         for (let k = 0; k < ac; k++) {
           const i = al[k];
           const uvx = ux[i], uvy = uy[i];
-          if (uvx === 0 && uvy === 0) { advEffArr[i] = pigAdv; continue; }
-          const um = Math.sqrt(uvx * uvx + uvy * uvy);
-          const t = um / hindRange;
-          const s = t >= 1 ? 1 : t <= 0 ? 0 : t * t * (3 - 2 * t);
-          const cross = Math.abs(TxP[i] * (uvy / um) - TyP[i] * (uvx / um));
-          advEffArr[i] = pigAdv * (1 - hind * s * cross);
+          if (uvx === 0 && uvy === 0) { advEffArr[i] = pigAdv * lag; continue; }
+          let advEff = pigAdv;
+          if (hind > 0) {
+            const um = Math.sqrt(uvx * uvx + uvy * uvy);
+            const t = um / hindRange;
+            const s = t >= 1 ? 1 : t <= 0 ? 0 : t * t * (3 - 2 * t);
+            const cross = Math.abs(TxP[i] * (uvy / um) - TyP[i] * (uvx / um));
+            advEff *= 1 - hind * s * cross;
+          }
+          advEffArr[i] = advEff * lag;
         }
       }
+      // M5：每颜料扩散率（湿中混色互渗）——低染色颜料扩散快
+      const diffK = diffBase * (0.25 + 1.5 * pig.diffusivity);
       for (let c = 0; c < ch; c++) {
         const PC = P[c];
         const sP = this._sP[c];
         for (let k = 0; k < ac; k++) {
           const i = al[k];
           const pv = PC[i];
-          if (pv <= 1e-6) { sP[i] = 0; continue; }
-          const uvx = ux[i], uvy = uy[i];
-          if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
           const x = alx[k], y = aly[k];
-          const advEff = hind > 0 ? advEffArr[i] : pigAdv;
-          let px = x - uvx * advEff, py = y - uvy * advEff;
-          px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
-          const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
-          const i00 = y0f * w + x0f;
-          sP[i] = bilerpAt(PC, i00, tx, ty, w);
+          if (pv <= 1e-6) {
+            if (!(diffK > 0 && M[i])) { sP[i] = 0; continue; }
+          }
+          const uvx = ux[i], uvy = uy[i];
+          let adv;
+          if (pv <= 1e-6) adv = 0;
+          else if (uvx === 0 && uvy === 0) adv = pv;
+          else {
+            const advEff = (hind > 0 || massLag > 0) ? advEffArr[i] : pigAdv * lag;
+            let px = x - uvx * advEff, py = y - uvy * advEff;
+            px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
+            const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
+            const i00 = y0f * w + x0f;
+            adv = bilerpAt(PC, i00, tx, ty, w);
+          }
+          // M5：湿中互渗扩散（M=1 时即使本格无颜料也算——颜料渗入清水区）
+          if (diffK > 0 && M[i]) {
+            const pL = x > 0 ? PC[i - 1] : 0, pR = x < w - 1 ? PC[i + 1] : 0;
+            const pU = y > 0 ? PC[i - w] : 0, pD = y < h - 1 ? PC[i + w] : 0;
+            adv += diffK * (pL + pR + pU + pD - 4 * pv);
+          }
+          sP[i] = adv < 0 ? 0 : adv;
         }
         for (let k = 0; k < ac; k++) { const i = al[k]; PC[i] = sP[i]; }
       }
@@ -867,7 +901,7 @@ export class WatercolorEngine {
           const uvx = ux[i], uvy = uy[i];
           if (uvx === 0 && uvy === 0) { sP[i] = pv; continue; }
           const x = alx[k], y = aly[k];
-          const advEff = hind > 0 ? advEffArr[i] : pigAdv;
+          const advEff = (hind > 0 || massLag > 0) ? advEffArr[i] : pigAdv * lag;
           let px = x - uvx * advEff, py = y - uvy * advEff;
           px = CLAMP(px, 0, w - 1.001); py = CLAMP(py, 0, h - 1.001);
           const x0f = px | 0, y0f = py | 0, tx = px - x0f, ty = py - y0f;
