@@ -1,17 +1,24 @@
 // 笔触层：stroke 协议 → 形状 mask → 引擎沉积注入
 // 形状：有机 blob（fbm 扰动椭圆）、手绘线（抖动盖章）、溅点
 // 注意：mask 与引擎网格同为左上原点（y 向下）
+// v2.0：新增新管线分流——stroke 带 brush/motion/load.tip/interleave 任一字段 → BrushState
+// （笔刷动力学,见 docs/brush-dynamics.md）;legacy 路径原代码冻结。
 import { mulberry32 } from "../paper/prng.js";
 import { fbm2D, valueNoise2D } from "../paper/noise.js";
+import { isNewPipeline } from "./brush.js";
+import { BrushState } from "./dynamics.js";
 
 export class StrokePainter {
   constructor(engine, { seed = 1, colorSystem = null } = {}) {
     this.eng = engine;
+    this.seed = seed;
     this.rng = mulberry32(seed);
     this.mask = new Float32Array(engine.n);
     this.mask2 = new Float32Array(engine.n);
     this._lastRibbon = null; // 最近一次 ribbon 的 mask（供 clip: "last-ribbon" 用）
     this.colorSystem = colorSystem; // ColorSystem 实例（缺省 → RGB 兜底基）
+    this._brushSeq = 0;            // 新管线每笔索引（per-stroke RNG 流 = painterSeed ^ strokeIndex）
+    this.lastBrushState = null;    // 最近一次新管线 BrushState（brush-lab 断言用）
   }
 
   clear() { this.mask.fill(0); }
@@ -216,6 +223,12 @@ export class StrokePainter {
 
   /** 应用一笔（协议 stroke）：颜料规范 → 颜色系统的每通道 K 基 → 引擎 */
   apply(stroke) {
+    // v2.0 新管线分流（spatter/re-wet/lift 维持现算子,不经过水库）
+    const specialOps = new Set(["spatter", "re-wet", "lift"]);
+    if (isNewPipeline(stroke) && !specialOps.has(stroke.type)) {
+      this.applyNew(stroke);
+      return;
+    }
     const eng = this.eng;
     const pig = stroke.pigment || {};
     // 颜色系统提供 K 基（RGB 3 通道或光谱 16 通道，笔触层不关心维度）
@@ -307,6 +320,24 @@ export class StrokePainter {
       default:
         throw new Error(`unknown stroke type: ${stroke.type}`);
     }
+  }
+
+  /** v2.0 新管线:配方 → BrushState → 发射 → 分桶沉积 → interleave(引擎只读 + depositMask,不改引擎) */
+  applyNew(stroke) {
+    const eng = this.eng;
+    const pig = (stroke.load?.pigment ?? stroke.pigment) || {};
+    const K = this.colorSystem ? this.colorSystem.pigmentBasis(pig) : defaultBasis(pig);
+    eng.setPigment({
+      K,
+      granulation: pig.granulation ?? 0.5,
+      staining: pig.staining ?? 0.5,
+    });
+    const state = new BrushState(eng, stroke, {
+      painterSeed: this.seed ?? 1,
+      strokeIndex: this._brushSeq++,
+    });
+    state.run();
+    this.lastBrushState = state;
   }
 }
 

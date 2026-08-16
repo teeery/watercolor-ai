@@ -48,10 +48,12 @@ export class Reservoir {
       belly: w0 * C.bellyFrac,
       heel: w0 * C.heelFrac,
     };
-    const pBelly = Math.max(0, load.pigment?.amount ?? 0.8);
-    const pTip = Math.max(0, load.tip?.amount ?? 0);
-    this.p = { tip: pTip, belly: pBelly, heel: pBelly };
-    this.p0 = pTip + pBelly * 2;
+    // 默认颜料按水配比均匀悬浮三桶(轻压只出 tip 也有色);
+    // load.tip 覆盖 tip 桶 → charging 渐变(一笔前段 tip 色、后段 belly 色)。
+    const pMain = Math.max(0, load.pigment?.amount ?? 0.8);
+    const pTip = Math.max(0, load.tip?.amount ?? pMain * C.tipFrac);
+    this.p = { tip: pTip, belly: pMain * C.bellyFrac, heel: pMain * C.heelFrac };
+    this.p0 = pTip + pMain * (C.bellyFrac + C.heelFrac);
     this.kBreak = kBreak;
     this.gamma = gamma;
     // 负通量迟滞状态：+1 在吸、-1 在放、0 未定
