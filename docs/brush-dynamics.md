@@ -231,7 +231,7 @@ demo/brush-lab.js 9 格验收面板（待建）
 
 - 不做：逐根毛物理/墨珠、全流体 NS、颜料粒重分离（P2）、调色盘涮笔对象（v2.1）、笔外世界。
 - 已知限：慢笔早枯是物理事实——长笔画必须短（agent 笔序要写短笔、勤蘸笔）；interleave 的时间压缩率按笔画长度固定（90 步），超长笔画的前后干燥差会饱和；脏笔吸色未落地前，湿接湿只稀释不染色。
-- 精读复核新发现的引擎侧问题（**归 medium-upgrade 修，本分支不动 src/core/**）：① 沉积率高度符号反（`1+expo·(H−0.5)`，Curtis 应为 `1−σ·H`，granulation 落谷不成立）；② `edgeK` 阶段恒 no-op（真实深边只剩渲染侧）；③ 无解吸项（lift/湿接湿的纸侧因果根缺失）；④ backrun ≠ "掩码扩张+边缘先干"（是毛细层容量扩散，我们的 re-wet 是自创算子，不应挂 Curtis 名）。详见 `research/curtis1997-close-reading.md`。
+- 精读复核发现的引擎侧问题:① 沉积率高度符号反(`1+expo·(H−0.5)` → Curtis 应为 `1−σ·H`)与 ② `edgeK` 阶段恒 no-op——**已由 M0 会话在 `src/core/engine.js` 修复**(bugfix 注释引 Curtis 精读复核,2026-08,工作区);③ 无解吸项(lift/湿接湿的纸侧因果根缺失)与 ④ backrun ≠ "掩码扩张+边缘先干"(是毛细层容量扩散,我们的 re-wet 是自创算子,不应挂 Curtis 名)——仍待 medium-upgrade。详见 `research/curtis1997-close-reading.md`。
 
 ## 附录 A：数值探针原始数据（摘要）
 

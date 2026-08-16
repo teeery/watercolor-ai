@@ -45,6 +45,8 @@ Curtis 1997 = **有序 glaze 集合**,每层 glaze 独立跑三层流体模拟(�
 
 ## 5. 纠错清单(两处已本地核验 ✅)
 
+> 状态更新(2026-08):①② 已由 M0 会话在 `src/core/engine.js` 修复——沉积段改 `1 − expo·hb`;edgeK 段改 `e = M − blur(M)` 内侧边带(bugfix 注释引用本报告纠错 #2)。③④ 仍待 medium-upgrade。
+
 1. ✅ **沉积率高度符号反**。`engine.js` 沉积段:`hb = H[i]−0.5; kk = depScale·(1 + expo·hb)·(1 + granScale·grain)`——H>0.5(纸峰)时 kk 更大 → 峰多沉积。Curtis 是 `1 − σ·h`(谷多吸附)。且段注释自称"纸谷偏置"。**真 bug,归 medium-upgrade 修。**
 2. ✅ **edgeK 阶段恒 no-op**。`if (!M[i]) continue;` 只留 M=1 格 → `e = Mb[i] − (M[i]?1:0) = Mb[i] − 1 ≤ 0` → `if (e <= 0.02) continue;` 永远跳过。edgeK=0.45 从未生效;渲染侧 edgeDarken 是唯一深边。同理蒸发段的 evapEdge/拉边只作用于 M=0 的 0<W≤θ 外沿格 → "咖啡环弱而均匀"的解释。**真 bug,归 medium-upgrade 修。**
 3. ⚠️ "backrun = 掩码扩张 + 边缘先干"是误解:backrun 是毛细层容量 c 驱动的分支扩散(§4.6);我们的 re-wet 显式搬运是自创算子(质量守恒方案仍然成立,但不应挂 Curtis 名)。
