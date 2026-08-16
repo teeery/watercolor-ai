@@ -30,4 +30,14 @@ if (mode === "edge") {
   const core = Dm[120 * 320 + 160];
   const edgeMax = Math.max(...Array.from({ length: 8 }, (_, k) => Dm[120 * 320 + 79 - k]));
   console.log(`core(x=160)=${core.toFixed(4)}  edgeMax(x 72-79)=${edgeMax.toFixed(4)}  edge/core=${(edgeMax / core).toFixed(3)}`);
+  // M2 断环度量：沿左边界线（x=80, y 61..179）的水线强度均值/标准差 + 内侧透明带
+  const lineVals = [];
+  for (let y = 61; y <= 179; y++) lineVals.push(Dm[y * 320 + 80]);
+  const mean = lineVals.reduce((a, b) => a + b, 0) / lineVals.length;
+  const std = Math.sqrt(lineVals.reduce((a, b) => a + (b - mean) * (b - mean), 0) / lineVals.length);
+  const bandVals = [];
+  for (let y = 61; y <= 179; y++) bandVals.push(Dm[y * 320 + 81]);
+  const bandMean = bandVals.reduce((a, b) => a + b, 0) / bandVals.length;
+  console.log(`M2: waterline mean=${mean.toFixed(4)} std=${std.toFixed(4)} (std/mean=${(std / mean).toFixed(3)}，断环越强比值越大)`);
+  console.log(`M2: inner-band(x=82) mean=${bandMean.toFixed(4)}  band/core=${(bandMean / core).toFixed(3)}（<1 = 透明带成立）`);
 }

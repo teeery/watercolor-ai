@@ -93,6 +93,10 @@ export class WatercolorEngine {
       fixRate: 0.5,     // M1：渐变固着率/步（MoXi SIMULATEFIXTURE，替换二值冻结）
       capLam: 3.0,      // M1：容纸度 max(1−ρ/λ, m) 的 λ
       capMin: 0.35,     // M1：容纸度的下限 m
+      shoreK: 1.0,      // M2：岸线算子总开关（0=关；干燥速度驱动的向内输运）
+      shoreCurv: 0.8,   // M2：曲率调制（弯处水线浓，直线段淡/断）
+      shoreSplit: 0.5,  // M2：granulation 分档（重颗粒少被拉向水线，滞留透明带沉淀）
+      shoreBreak: 0.7,  // M2：沿切线噪声断环深度（0=连续环，1=全断）
       ...params,
     };
 
@@ -754,8 +758,33 @@ export class WatercolorEngine {
             if (x === 0 || x === w - 1) ix = i;
             let iy = i + w * Math.round(gy / gl);
             if (y === 0 || y === h - 1) iy = i;
+            // M2 岸线算子（Curtis FlowOutward 的落地）：干燥速度驱动的向内输运
+            //  × 沿切线噪声断环 × 纸纹调制 × 曲率调制 × granulation 分档
+            let kkBase = 0.12 * (e > 1 ? 1 : e);
+            let shore = 1;
+            if (p.shoreK > 0) {
+              const dryDrive = 1 + p.evapEdge * e;                       // 蒸发越快输运越强（因果耦合）
+              const tx = -gy / gl, ty = gx / gl;                          // 岸边切线
+              const s = x * tx + y * ty;
+              const tn = valueNoise2D(s * 0.09 + 4.1, 3.7, 71);           // 沿切线 1D 噪声
+              const breakF = (1 - p.shoreBreak) + p.shoreBreak * tn;      // 断环深度
+              const gmod = 0.5 + 1.0 * G[i];                              // 纸纹：谷处成线更浓
+              let curv = 0;
+              {
+                const tIdx = Math.round(ty) * w + Math.round(tx);
+                const n1 = i + tIdx, n2 = i - tIdx;
+                if (n1 >= 0 && n1 < this.n && n2 >= 0 && n2 < this.n) {
+                  curv = Math.abs(Mb[n1] + Mb[n2] - 2 * Mb[i]);           // 边界弯曲度代理
+                }
+              }
+              const curvTerm = 1 + p.shoreCurv * curv;                    // 弯处水线浓、直线段淡
+              shore = p.shoreK * dryDrive * breakF * gmod * curvTerm;
+            }
             for (const ii of [ix, iy]) {
-              const kk = 0.12 * (e > 1 ? 1 : e);
+              // M2：granulation 分档——重颗粒少被拉向水线（滞留在透明带沉淀 = 分离雏形）
+              let kk = kkBase * shore;
+              if (p.shoreSplit > 0) kk *= 1 - p.shoreSplit * this.pigment.granulation * 0.5;
+              if (kk > 0.4) kk = 0.4;
               let total = 0;
               for (let c = 0; c < ch; c++) total += P[c][ii];
               if (total <= 1e-6) continue;
