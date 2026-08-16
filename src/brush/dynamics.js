@@ -12,7 +12,7 @@ const VSCALE = 60;        // speed=1 → 60 px/s(画布口径)
 const SPACING = 0.35;     // Δs = SPACING·width(网格口径;0.35 密戳消"印章链")
 const CHUNKS = 6;         // interleave 分块数
 const kStep = 0.3;        // interleave 步数 ∝ 弧长系数(§6:总步数 = min(arcLen·kStep, budgetMax))
-const BUCKETS_W = 8, BUCKETS_A = 8;
+const SEG_PER_SEGMENT = 4; // 每段戳数(路径顺序分段:无量化、沿路径密度连续)
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
@@ -101,13 +101,10 @@ export class BrushState {
     this.interleave = !!(stroke.interleave?.on || stroke.motion) && this.totalLen > 150;
     this.budgetMax = stroke.interleave?.budget ?? 90;
 
-    // 分桶与记账
-    this.poolMasks = [];
-    this.bristleMasks = [];
-    this.bucketKeys = [];
-    this.bucketOrder = [];     // key → 首次出现序
-    this._bucketIdx = new Map();
-    this._cover = new Float32Array(engine.n); // max-blend 覆盖掩码(消量档重叠累积)
+    // 分桶与记账:改"路径顺序分段"(每 SEG 戳一段,无量化 → 沿路径密度连续,无串珠)
+    this.segments = [];
+    this._curSeg = null;
+    this._cover = new Float32Array(engine.n); // max-blend 覆盖掩码(消段间重叠累积)
     this.stamps = 0;
     this.interleavedSteps = 0;
     this.tipReleasedTotal = 0; // charging 记账(跨 interleave 块累计)
@@ -121,41 +118,30 @@ export class BrushState {
     return Math.min(1, W[yi * w + xi] / Math.max(0.05, paper.C[yi * w + xi]));
   }
 
-  _bucketFor(w, a, tipShare) {
-    // w,a 都是 0..max 范围;量化到 8 档(0 档 = 0)
-    const wIdx = w <= 1e-9 ? 0 : 1 + Math.min(BUCKETS_W - 1, (w / this._wMax) * BUCKETS_W | 0);
-    const aIdx = a <= 1e-9 ? 0 : 1 + Math.min(BUCKETS_A - 1, (a / this._aMax) * BUCKETS_A | 0);
-    const key = wIdx * BUCKETS_A + aIdx;
-    let b = this._bucketIdx.get(key);
-    if (!b) {
-      b = {
-        key,
-        order: this.bucketOrder.length,
+  _segmentFor(w, a, tipShare) {
+    if (!this._curSeg || this._curSeg.n >= SEG_PER_SEGMENT) {
+      const seg = {
         pool: new Float32Array(this.eng.n),
         bristle: new Float32Array(this.eng.n),
         wSum: 0, aSum: 0, pTipSum: 0, wetSum: 0, gbSum: 0, n: 0,
       };
-      this.bucketOrder.push(key);
-      this._bucketIdx.set(key, b);
-      this.poolMasks.push(b.pool);
-      this.bristleMasks.push(b.bristle);
-      this.bucketKeys.push(key);
+      this.segments.push(seg);
+      this._curSeg = seg;
     }
+    const b = this._curSeg;
     b.wSum += w; b.aSum += a; b.pTipSum += tipShare * a; b.n++;
     return b;
   }
 
-  _flushBuckets(bucketList) {
+  _flushSegments(segList) {
     const eng = this.eng;
     const prov = this.pigmentProvider;
     const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
     const covered = this._cover;
     covered.fill(0);
-    // max-blend:按 amount 降序沉积,每格只被最高档覆盖一次(杀"量档重叠累积"串珠;
-    // 顺带最高档=笔头,先沉积 → 前缘线由笔头定义 ✓)
-    const sorted = [...bucketList].filter((b) => b.n > 0)
-      .sort((x, y) => (y.aSum / y.n) - (x.aSum / x.n));
-    for (const b of sorted) {
+    // 按路径顺序沉积(笔头定义前缘线),covered mask 做 max-blend:每格只被先到者覆盖一次
+    for (const b of segList) {
+      if (b.n === 0) continue;
       const wAvg = b.wSum / b.n;
       const aAvg = b.aSum / b.n;
       const wetAvg = b.wetSum / b.n;
@@ -180,7 +166,7 @@ export class BrushState {
         if (b.bristle[i] > 0) b.bristle[i] *= k;
       }
       const wDep = Math.min(2.0, wAvg * K_WATER * (1 - 0.6 * wetAvg)); // kAbsorb=0.6:湿纸吸不动
-      // 每桶混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
+      // 每段混色:tipShare → belly 色与 tip 色混合(charging 一笔多色)
       if (prov) {
         const tipFrac = b.aSum > 1e-9 ? b.pTipSum / b.aSum : 0;
         eng.setPigment(prov.basis(prov, tipFrac));
@@ -195,9 +181,6 @@ export class BrushState {
     const eng = this.eng;
     const n = Math.max(1, Math.round(this.totalLen / this.ds));
     this.reservoir.setStrokeLength(n); // 颜料释放率按戳数锚定(满载撑完全笔)
-    // 分桶量化上界(每戳释放口径)
-    this._wMax = Math.max(0.05, this.reservoir.wLevel * 0.7);
-    this._aMax = Math.max(0.05, this.reservoir.aLevel * 0.7);
 
     const stamp = (k) => {
       const s = n === 0 ? 0 : k / n;
@@ -225,58 +208,52 @@ export class BrushState {
       this._prevDX = dx; this._prevDY = dy;
       if (dw > 1e-9 || amount > 1e-9) {
         this.tipReleasedTotal += tipShare * amount;
-        const b = this._bucketFor(dw, amount, tipShare);
+        const b = this._segmentFor(dw, amount, tipShare);
         b.wetSum += this.wetnessAt(xi, yi);
         b.gbSum += gb;
         const soft = Math.max(3, this.ds * 0.8);
         paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
         this.bristles.paintMarks(b.bristle, eng.w, eng.h);
-        return { dt, b };
+        return { dt, seg: b };
       }
       return null;
     };
     this._prevDX = 1; this._prevDY = 0;
 
-    const bucketList = () => this.bucketOrder.map((key) => this._bucketIdx.get(key));
-
     if (!this.interleave) {
       for (let k = 0; k <= n; k++) { stamp(k); this.stamps++; }
-      this._flushBuckets(bucketList());
+      this._flushSegments(this.segments);
       return { steps: 0 };
     }
 
     // interleave:按戳分块,画一块 → 沉积一块 → 步进一块(§6:块步数按真实 dt 比例)
-    const chunks = [];
-    const chunkSize = Math.max(1, Math.ceil((n + 1) / CHUNKS));
     let dtTotal = 0;
+    const chunkInfo = [];
+    const chunkSize = Math.max(1, Math.ceil((n + 1) / CHUNKS));
     for (let c = 0; c < CHUNKS; c++) {
       const lo = c * chunkSize, hi = Math.min(n, lo + chunkSize - 1);
       if (lo > n) break;
-      const info = [];
+      const segStart = this.segments.length;
       let dtSum = 0;
       for (let k = lo; k <= hi; k++) {
         const r = stamp(k);
         this.stamps++;
-        if (r) { info.push(r); dtSum += r.dt; }
+        if (r) dtSum += r.dt;
       }
-      chunks.push({ info, dtSum });
+      chunkInfo.push({ segs: this.segments.slice(segStart), dtSum });
       dtTotal += dtSum;
     }
     dtTotal = dtTotal || 1e-9;
     const totalSteps = Math.max(CHUNKS, Math.min(Math.round(dtTotal * 60), this.budgetMax));
     this.chunkDebug = [];
     let stepBudgetLeft = totalSteps;
-    for (const ch of chunks) {
-      const seen = new Set(ch.info.map((x) => x.b.key));
+    for (const ch of chunkInfo) {
       const steps = Math.max(1, Math.round(totalSteps * (ch.dtSum / dtTotal)));
-      this._flushBuckets(bucketList().filter((b) => seen.has(b.key)));
-      this.chunkDebug.push({ nStamps: ch.info.length, keys: [...seen], steps });
+      this._flushSegments(ch.segs);
+      this.chunkDebug.push({ nSegs: ch.segs.length, steps });
       this.interleavedSteps += steps;
       eng.step(Math.min(steps, stepBudgetLeft));
       stepBudgetLeft -= steps;
-      for (const b of bucketList()) {
-        if (seen.has(b.key)) { b.pool.fill(0); b.bristle.fill(0); b.wSum = 0; b.aSum = 0; b.pTipSum = 0; b.wetSum = 0; b.gbSum = 0; b.n = 0; }
-      }
     }
     return { steps: this.interleavedSteps };
   }
@@ -290,7 +267,8 @@ export class BrushState {
       wickedW: this.reservoir.wickedW,
       tipReleased: this.tipReleasedTotal,
       stamps: this.stamps,
-      buckets: this.bucketKeys.length,
+      stamps: this.stamps,
+      segments: this.segments.length,
       interleavedSteps: this.interleavedSteps,
       totalLen: this.totalLen,
     };

@@ -38,7 +38,7 @@ const NEW_STROKES = [
   for (const s of NEW_STROKES) st.apply(s);
   const a = st.painter.lastBrushState.assertions();
   ok("新管线:守恒(Σdw ≤ w0)", a.conservationOK, `Σdw=${a.releasedW.toFixed(3)}`);
-  ok("新管线:戳数/桶数合理", a.stamps >= 10 && a.buckets >= 1, `stamps=${a.stamps} buckets=${a.buckets}`);
+  ok("新管线:戳数/段数合理", a.stamps >= 10 && a.segments >= 1, `stamps=${a.stamps} segments=${a.segments}`);
   const interleaved = st.painter.lastBrushState.interleave;
   ok("interleave 判据:长笔 + motion 触发", interleaved === true);
   st.engine.step(300);
