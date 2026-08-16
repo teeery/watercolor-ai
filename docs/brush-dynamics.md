@@ -120,7 +120,7 @@ LLM 写作例：`"motion": { "verb": "拖", "pressure": [0.4, 1.0, 0.1] }`——
 
 - **纤维方向场**（medium-upgrade A 的 Tx/Ty）：飞白条向 = `lerp(笔势, 纤维, gb)`——湿态沿笔势、越干越沿纸纤维。毛缘刮痕的残留方向同理。纸纹三档预设（hot/cold/rough）在此消费。
 - **纸齿接触阈值**：`contact = H > hThr(gb)`，gb 越大阈值越高 → 枯笔只在纸峰留痕（签名 #12）。H 场已有，纯 mask 乘法。
-- **湿边浓集**（调研性价比第一的 Curtis 式启发）：引擎已有 frontDeposit + edgeK + 渲染侧 edgeDarken，**升级归 medium-upgrade B（岸线算子）**；笔刷层的职责是提供"边缘清晰的水量梯度"（首戳 burst 水珠 + 腹池边缘），不重复实现浓集。
+- **湿边浓集**（调研性价比第一的 Curtis 式启发）：升级归 medium-upgrade B（岸线算子），**原文依据 = Curtis §4.3.3 FlowOutward**（`p ← p − β·(1−blur(M))·M`，边带减水压 → 向外流 → 颜料持续运到边沉积，β ∈ [.01,.05]）。精读核验发现：引擎模拟侧 `edgeK` 阶段**恒空转**（`e = Mb−1 ≤ 0` 永远跳过），当前真实深边只有渲染侧 edgeDarken；该修复归 medium-upgrade（见 `research/curtis1997-close-reading.md` 纠错 #2）。笔刷层的职责不变：提供"边缘清晰的水量梯度"（首戳 burst 水珠 + 腹池边缘），不重复实现浓集。
 - **granulation**：F/G 消费保持现状，方向性升级归 medium-upgrade A。
 - **known issue #4 划界（评审 S1-6 采纳）**：v2 只认领 #4 的**飞白子项**（纹理 × 压力/笔速因果）；咖啡环/岸线子项归 medium-upgrade B（岸线算子），互不重复。依赖声明：**本设计依赖 M1 的 Tx/Ty 场与 M0 的活跃集**——M0 未落地前分桶沉积是全画布扫描（§8-4），性能口径以 M0 后为准。
 
@@ -227,6 +227,7 @@ demo/brush-lab.js 9 格验收面板（待建）
 
 - 不做：逐根毛物理/墨珠、全流体 NS、颜料粒重分离（P2）、调色盘涮笔对象（v2.1）、笔外世界。
 - 已知限：慢笔早枯是物理事实——长笔画必须短（agent 笔序要写短笔、勤蘸笔）；interleave 的时间压缩率按笔画长度固定（90 步），超长笔画的前后干燥差会饱和；脏笔吸色未落地前，湿接湿只稀释不染色。
+- 精读复核新发现的引擎侧问题（**归 medium-upgrade 修，本分支不动 src/core/**）：① 沉积率高度符号反（`1+expo·(H−0.5)`，Curtis 应为 `1−σ·H`，granulation 落谷不成立）；② `edgeK` 阶段恒 no-op（真实深边只剩渲染侧）；③ 无解吸项（lift/湿接湿的纸侧因果根缺失）；④ backrun ≠ "掩码扩张+边缘先干"（是毛细层容量扩散，我们的 re-wet 是自创算子，不应挂 Curtis 名）。详见 `research/curtis1997-close-reading.md`。
 
 ## 附录 A：数值探针原始数据（摘要）
 
@@ -261,3 +262,12 @@ demo/brush-lab.js 9 格验收面板（待建）
 | S2-11 | LLM 可写性（裸数组、speed=0 陷阱） | ✅ §5/§9：verb 词汇 + 校验规则 |
 
 评审提出的"v2 必增 7 章"全部落入本稿：沉积接口改造（§8-4/§10）、守恒与 dt（§4）、可复现契约（§8-5/§9）、时间调度（§6）、medium-upgrade 对齐（§7）、协议 v0.3（§9）、数值验收与常数表（§11）。
+
+## 附录 D：Curtis 1997 原文精读复核（摘要）
+
+全文与逐项对照见 `research/curtis1997-close-reading.md`。与本设计的净影响：
+
+1. **Curtis 不建模笔**（交互=高斯笔涂注入,自动笔刷=区域场注入;bristle 模型原文明言是 future work）——我们的"笔 = 弧长状态机 + 水库 + N 毛"是原文空白区的自创,不冲突;也因此笔刷动力学**只能靠 brush-lab 数值断言 + vision 自己证,无人可抄**。
+2. 干笔纸齿阈值(签名 #12)拿到原文背书(§4.7 / 专利 claim16)。
+3. 两处已本地核验的引擎 bug(归 medium-upgrade):沉积率高度符号反、edgeK 阶段恒空转(§12 已知限)。
+4. 可抄清单按性价比:解吸项 > 高度符号修正 > FlowOutward > 纸坡 ∇H > density α > 两常数 KM。
