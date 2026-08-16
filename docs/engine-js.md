@@ -1,6 +1,7 @@
 # JS 介质引擎实现说明（Phase 0 交付）
 
 > 对应 `src/` 代码；规格见 `docs/engine.md` 与 `docs/watercolor_engine_spec.md`。
+> 演进注：本文档为 Phase 0 交付基线（RGB 系统）。其后新增：16 波段光谱系统与六部分层重构（`chronicle/04-光谱色彩与分层重构.md`）。缺口 backlog 与协议 v0.2 见 `docs/engine.md`；升级缝正式规格见 `docs/architecture.md`。
 
 ## 数据结构（640×480 网格，Float32Array）
 

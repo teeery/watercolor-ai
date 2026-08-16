@@ -2,6 +2,8 @@
 
 （Phase 1；先让引擎尖峰通过，再接这一层。）
 
+> 协议与架构：stroke 协议 v0.2（`brush`/`motion`/颜料名优先）见 `docs/engine.md`；能力层与目录落点见 `docs/architecture.md`。
+
 ## 画一张画的流程（阶段制）
 
 1. **构图**：agent 规划笔序（先湿后干、由浅入深），产出 stroke 计划。

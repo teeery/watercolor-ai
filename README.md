@@ -47,6 +47,7 @@
 | 引擎全景观感 | **6.5/10** | 背景湿铺 ≈ 8 分；物体笔触 4-5 分（Phase 1 的活） |
 | 回流开花特写 | 6.5-7/10 | 闭环深色蕾丝 + 浅色水渍心成立 |
 | 24 色卡（RGB 系统） | 7.2/10 | 色彩准确自然；运笔同模与重颗粒待立 |
+| 24 色卡（光谱系统） | **8.5/10** | 约 17-18 支可盲认；全强度平均 ΔE 5.5→3.2 |
 | Open-Watercolor-Sim（对照基准） | 2.5-3/10 | 官方 demo "带颜色的雾" |
 
 门槛解读：**"水是真的"已过半**（缩略图一眼是松散水彩小品；水痕会长出来），色彩"准"已足而"艳/深/身份"尚在途中——光谱系统是向史明克级迈出的第一步。
@@ -75,7 +76,7 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - `chronicle/` — **项目史（仿《明史》四体：本纪/志/表/列传）**
 - `docs/paradigm.md` — 范式：从对话中沉淀的认知精华
 - `docs/architecture.md` — **分层架构与升级缝（松耦合升级的正式规格）**
-- `docs/engine.md` — 强引擎规格：五个感知签名工件 + stroke 协议
+- `docs/engine.md` — 强引擎规格：五个工件 + **stroke 协议 v0.2** + 工件缺口 backlog
 - `docs/engine-js.md` — JS 引擎实现说明（数据结构、管线、bloom 算子、参数表、已知问题）
 - `docs/watercolor_engine_spec.md` — Hobbs/Curtis 算法规格（研究产出，公式有出处）
 - `docs/agent-loop.md` — 接入层：agent 笔序 + vision 阶段批评（Phase 1）
@@ -94,4 +95,4 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 
 ## 下一步
 
-见 `docs/roadmap.md`：**Phase 1 — 接入 LLM**（stroke JSON 协议定稿、dsh-studio 循环骨架移植、vision 阶段批评、一句话到完整水彩的端到端 demo）。
+见 `docs/roadmap.md`：**Phase 1 — 接入 LLM**（stroke 协议 v0.2 定稿、dsh-studio 循环骨架移植、vision 阶段批评、一句话到完整水彩的端到端 demo）。
