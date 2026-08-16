@@ -14,7 +14,7 @@
 
 export const RESERVOIR_CONSTANTS = {
   kRelease: 1.2,     // 指数释放率 s⁻¹
-  dtMax: 0.8,        // 停笔毛细释放上限 s
+  dtMax: 1.5,        // 停笔/慢笔释放上限 s(1.5 让"慢=积墨"与中速拉开;击穿由 exposedW 钳兜底)
   vMin: 0.02,        // 速度下钳
   kPig: 0.9,         // 颜料随水释放系数
   kDry: 0.35,        // 干笔刮擦留色系数
@@ -22,7 +22,7 @@ export const RESERVOIR_CONSTANTS = {
   kAbsorb: 0.6,      // 湿纸吸收衰减(dynamics 层消费)
   kCapillary: 0.25,  // tip 回补率/戳
   epsHyst: 0.1,      // 吸放迟滞带(Wetbrush 式 12/13 采纳)
-  capFactor: 15,     // 容量 → 水库预算的换算系数
+  capFactor: 45,     // 容量 → 水库预算系数(校准:满载笔覆盖 ~1.5-2× 典型笔画,飞白只在尾部涌现)
   // 桶配比
   tipFrac: 0.15, bellyFrac: 0.6, heelFrac: 0.25,
   // 压力接触门(smoothstep 区间;v2.0 校准放宽:轻压也有腹桶参与)
@@ -94,19 +94,31 @@ export class Reservoir {
 
   /** 当前飞白强度(gb 涌现):水库枯竭 × 速度 */
   grainBreak(v) {
-    const dep = 1 - this.totalWater() / this.w0;
+    let dep = 1 - this.totalWater() / this.w0;
     if (dep < 0) dep = 0;
     return clamp01(this.kBreak * Math.pow(dep, this.gamma) * (0.4 + 0.6 * v));
   }
 
-  /** 毛细回补:tip 先出、belly 持续补(每戳,按余量比例) */
+  /** 毛细回补:tip 先出、belly 持续补;颜料悬浮在水里,随水势梯度沿 depth 链迁移(heel→belly→tip) */
   capillary() {
     const k = this.C.kCapillary;
-    const move = k * (this.w.belly - this.w.tip);
-    if (move > 0) {
-      const m = Math.min(move, this.w.belly);
-      this.w.tip += m;
-      this.w.belly -= m;
+    // tip ← belly
+    let moveW = k * (this.w.belly - this.w.tip);
+    if (moveW > 0) {
+      const m = Math.min(moveW, this.w.belly);
+      const share = this.w.belly > 0 ? m / this.w.belly : 0;
+      const mp = this.p.belly * share * 0.8;
+      this.w.tip += m; this.w.belly -= m;
+      this.p.tip += mp; this.p.belly -= mp;
+    }
+    // belly ← heel
+    moveW = k * (this.w.heel - this.w.belly);
+    if (moveW > 0) {
+      const m = Math.min(moveW, this.w.heel);
+      const share = this.w.heel > 0 ? m / this.w.heel : 0;
+      const mp = this.p.heel * share * 0.8;
+      this.w.belly += m; this.w.heel -= m;
+      this.p.belly += mp; this.p.heel -= mp;
     }
   }
 

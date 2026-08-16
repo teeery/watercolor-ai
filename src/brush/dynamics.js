@@ -9,7 +9,7 @@ import { paintFootprint } from "./footprints.js";
 
 const GRID_SCALE = 0.5;   // 画布 → 网格
 const VSCALE = 60;        // speed=1 → 60 px/s(画布口径)
-const SPACING = 0.5;      // Δs = SPACING·width(网格口径)
+const SPACING = 0.35;     // Δs = SPACING·width(网格口径;0.35 密戳消"印章链")
 const CHUNKS = 6;         // interleave 分块数
 const kStep = 0.3;        // interleave 步数 ∝ 弧长系数(§6:总步数 = min(arcLen·kStep, budgetMax))
 const BUCKETS_W = 8, BUCKETS_A = 8;
@@ -214,8 +214,9 @@ export class BrushState {
         const b = this._bucketFor(dw, amount, tipShare);
         b.wetSum += this.wetnessAt(xi, yi);
         b.gbSum += gb;
-        // 绘制:腹池(软边) + 毛缘
-        paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, 2.5, null);
+        // 绘制:腹池(软边,软边宽随戳距 → 连续笔迹) + 毛缘
+        const soft = Math.max(3, this.ds * 0.8);
+        paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
         this.bristles.paintMarks(b.bristle, eng.w, eng.h, xi, yi, dx, dy, width);
         stampsInfo.push({ dt, b });
       }
