@@ -66,17 +66,25 @@ export class Reservoir {
     const pBudget = cap * 0.9; // 颜料预算 ≈ 水预算 ×0.9
     this.p0 = pBudget;
     this.p = {
-      tip: pTip / pMain * pBudget * C.tipFrac,
+      // tip 桶:无 tip 蘸色 = 均匀悬浮(tipFrac);有 tip 蘸色 = 浓度按 pTip/pMain 缩放(只乘一次 tipFrac)
+      tip: (pTip / pMain) * pBudget * (load.tip ? C.tipFrac : 1),
       belly: pBudget * C.bellyFrac,
       heel: pBudget * C.heelFrac,
     };
     this._pTotal = this.p.tip + this.p.belly + this.p.heel;
+    this.pInit = this._pTotal; // 初始颜料总量(守恒断言基准)
     // 负通量迟滞状态:+1 在吸、-1 在放、0 未定
     this.fluxDir = 0;
     // 记账(数值断言用)
     this.releasedW = 0;
     this.releasedP = 0;
     this.wickedW = 0;
+    this.pRate = pBudget / 60; // 每戳颜料基准速率(默认 60 戳口径;dynamics 会按实际戳数锚定)
+  }
+
+  /** 按笔画戳数锚定颜料释放率:满载颜料要撑完全笔,尾部渐淡而非断供 */
+  setStrokeLength(nStamps) {
+    this.pRate = this.pInit / Math.max(1, nStamps);
   }
 
   totalWater() { return this.w.tip + this.w.belly + this.w.heel; }
@@ -135,7 +143,6 @@ export class Reservoir {
     const wTotal = this.totalWater();
     const exposedW = this.w.tip * f.tip + this.w.belly * f.belly + this.w.heel * f.heel;
     const pTotal = this.totalPigment();
-    const exposedP = this.p.tip * f.tip + this.p.belly * f.belly + this.p.heel * f.heel;
     const gb = this.grainBreak(v);
     if (p <= 0 || (wTotal <= 1e-9 && pTotal <= 1e-9)) return { dw: 0, amount: 0, tipShare: 0, gb };
 
@@ -151,15 +158,23 @@ export class Reservoir {
     }
 
     // —— 颜料:装载浓度口径,独立于水;随余量衰减 + 干笔刮擦 ——
+    // 干态(gb 高)下刮擦语义:毛弯到底,belly/heel 颜料无需压力门也可刮出(否则颜料永远卡死在 heel)。
     let pRelease = 0, tipShare = 0;
+    const fP = {
+      tip: 1,
+      belly: Math.max(f.belly, gb * 0.5),
+      heel: Math.max(f.heel, gb * 0.4),
+    };
+    const exposedP = this.p.tip * fP.tip + this.p.belly * fP.belly + this.p.heel * fP.heel;
     if (exposedP > 1e-9) {
       const fPig = exposedP / Math.max(pTotal, 1e-9);
       const loadFrac = wTotal / Math.max(this.w0, 1e-9);
-      pRelease = this.aLevel * fPig * (0.4 + 0.5 * loadFrac + 0.3 * gb * p) * C.kPig;
+      // 速率锚定:满载时每戳 ≈ pRate·1.05(预算恰好撑完全笔),0.35 地板保证尾部渐淡不断供
+      pRelease = this.pRate * (0.35 + 0.4 * loadFrac + 0.3 * gb * p) * fPig;
       if (pRelease > exposedP) pRelease = exposedP;
-      tipShare = (this.p.tip * f.tip) / exposedP;
+      tipShare = (this.p.tip * fP.tip) / exposedP;
       for (const k of ["tip", "belly", "heel"]) {
-        this.p[k] = Math.max(0, this.p[k] - pRelease * (this.p[k] * f[k] / exposedP));
+        this.p[k] = Math.max(0, this.p[k] - pRelease * (this.p[k] * fP[k] / exposedP));
       }
     }
 
@@ -187,8 +202,11 @@ export class Reservoir {
     return dw;
   }
 
-  /** 数值断言辅助:守恒与否(释放 ≤ 初始装水 + 湿纸吸回;wick 吸回的水可再释放,物理正确) */
+  /** 数值断言辅助:守恒与否(释放 ≤ 初始装水 + 湿纸吸回;颜料释放 ≤ 初始颜料) */
   conservationOK(eps = 1e-6) {
-    return this.releasedW <= this.w0 + this.wickedW + eps && this.totalWater() >= -eps && this.totalPigment() >= -eps;
+    return this.releasedW <= this.w0 + this.wickedW + eps
+      && this.releasedP <= this.pInit + eps
+      && this.totalWater() >= -eps
+      && this.totalPigment() >= -eps;
   }
 }

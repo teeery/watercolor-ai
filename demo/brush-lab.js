@@ -21,7 +21,13 @@ const ok = (name, cond, detail = "") => {
 };
 
 function makeStudio() {
-  return createStudio({ width: CW, height: CH, seed: 3, painterSeed: 11 });
+  // 笔刷层验收隔离:medium 会话的 σ 钉扎(M1)与宏观侵蚀(M2)按"水量门槛"拒收低水笔触,
+  // 会把干笔/飞白整段钉掉——两者与笔刷层正交,面板内关闭以便单独验收笔刷;
+  // 交互调优(干笔 × σ/侵蚀)记为跨会话 TODO,见 COORDINATION.md §3。
+  return createStudio({
+    width: CW, height: CH, seed: 3, painterSeed: 11,
+    params: { sigma0: 0, macroCut: 0 },
+  });
 }
 
 /** 把一个 studio 的渲染结果放进面板格 (col,row) */

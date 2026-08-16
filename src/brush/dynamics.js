@@ -150,6 +150,11 @@ export class BrushState {
     const K_WATER = 6.0, K_AMOUNT = 2.0; // 单位换算:每戳膜厚口径 → 引擎 legacy 观感尺度(校准值)
     for (const b of bucketList) {
       if (b.n === 0) continue;
+      if (this.debugFlush) {
+        let nz = 0;
+        for (let i = 0; i < b.pool.length; i++) if (b.pool[i] > 0) nz++;
+        console.log("[flush] key=", b.key, "n=", b.n, "aAvg=", (b.aSum / b.n).toFixed(4), "poolNz=", nz);
+      }
       const wAvg = b.wSum / b.n;
       const aAvg = b.aSum / b.n;
       const wetAvg = b.wetSum / b.n;
@@ -177,17 +182,14 @@ export class BrushState {
   run() {
     const eng = this.eng;
     const n = Math.max(1, Math.round(this.totalLen / this.ds));
+    this.reservoir.setStrokeLength(n); // 颜料释放率按戳数锚定(满载撑完全笔)
     // 分桶量化上界(每戳释放口径)
     this._wMax = Math.max(0.05, this.reservoir.wLevel * 0.7);
     this._aMax = Math.max(0.05, this.reservoir.aLevel * 0.7);
 
-    // 记录每戳的 (dt, bucket) 供 interleave 按真实时间分配
-    const stampsInfo = [];
-    let prevDirX = 1, prevDirY = 0;
-    for (let k = 0; k <= n; k++) {
+    const stamp = (k) => {
       const s = n === 0 ? 0 : k / n;
       const t = s * this.totalLen;
-      // 弧长 → 位置与切线
       let acc = 0, xi = this.pts[0][0], yi = this.pts[0][1], dx = 1, dy = 0;
       for (let i = 0; i < this.segLens.length; i++) {
         if (acc + this.segLens[i] >= t) {
@@ -203,52 +205,66 @@ export class BrushState {
       }
       const p = this.motion.pressure(s);
       const v = Math.max(this.motion.speed(s), 0.02);
-      const dt = Math.min(this.ds / (v * VSCALE * GRID_SCALE), 0.8);
+      const dt = Math.min(this.ds / (v * VSCALE * GRID_SCALE), 1.5);
       const { dw, amount, tipShare, gb } = this.reservoir.release(p, v, this.ds);
       this.reservoir.wick(p, this.wetnessAt(xi, yi), dt);
       this.reservoir.capillary();
-      const width = this.bristles.advance(xi, yi, dx, dy, p, v, dt, this.widthGrid, prevDirX, prevDirY);
-      prevDirX = dx; prevDirY = dy;
+      const width = this.bristles.advance(xi, yi, dx, dy, p, v, dt, this.widthGrid, this._prevDX, this._prevDY);
+      this._prevDX = dx; this._prevDY = dy;
       if (dw > 1e-9 || amount > 1e-9) {
         this.tipReleasedTotal += tipShare * amount;
         const b = this._bucketFor(dw, amount, tipShare);
         b.wetSum += this.wetnessAt(xi, yi);
         b.gbSum += gb;
-        // 绘制:腹池(软边,软边宽随戳距 → 连续笔迹) + 毛缘
         const soft = Math.max(3, this.ds * 0.8);
         paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
         this.bristles.paintMarks(b.bristle, eng.w, eng.h);
-        stampsInfo.push({ dt, b });
+        return { dt, b };
       }
-      this.stamps++;
-    }
+      return null;
+    };
+    this._prevDX = 1; this._prevDY = 0;
 
-    const bucketList = this.bucketOrder.map((key) => this._bucketIdx.get(key));
+    const bucketList = () => this.bucketOrder.map((key) => this._bucketIdx.get(key));
 
     if (!this.interleave) {
-      this._flushBuckets(bucketList);
+      for (let k = 0; k <= n; k++) { stamp(k); this.stamps++; }
+      this._flushBuckets(bucketList());
       return { steps: 0 };
     }
 
-    // interleave:6 块,步数按块真实 dt 比例分配,总步数 = min(Σdt·60, budgetMax)
-    const totalDt = stampsInfo.reduce((a, x) => a + x.dt, 0) || 1e-9;
-    const totalSteps = Math.max(CHUNKS, Math.min(Math.round(totalDt * 60), this.budgetMax));
-    const chunkSize = Math.max(1, Math.ceil(stampsInfo.length / CHUNKS));
-    let idx = 0;
+    // interleave:按戳分块,画一块 → 沉积一块 → 步进一块(§6:块步数按真实 dt 比例)
+    const chunks = [];
+    const chunkSize = Math.max(1, Math.ceil((n + 1) / CHUNKS));
+    let dtTotal = 0;
+    for (let c = 0; c < CHUNKS; c++) {
+      const lo = c * chunkSize, hi = Math.min(n, lo + chunkSize - 1);
+      if (lo > n) break;
+      const info = [];
+      let dtSum = 0;
+      for (let k = lo; k <= hi; k++) {
+        const r = stamp(k);
+        this.stamps++;
+        if (r) { info.push(r); dtSum += r.dt; }
+      }
+      chunks.push({ info, dtSum });
+      dtTotal += dtSum;
+    }
+    dtTotal = dtTotal || 1e-9;
+    const totalSteps = Math.max(CHUNKS, Math.min(Math.round(dtTotal * 60), this.budgetMax));
+    this.chunkDebug = [];
     let stepBudgetLeft = totalSteps;
-    for (let c = 0; c < CHUNKS && idx < stampsInfo.length; c++) {
-      const end = Math.min(stampsInfo.length, idx + chunkSize);
-      let chunkDt = 0;
-      const seen = new Set();
-      for (let j = idx; j < end; j++) { chunkDt += stampsInfo[j].dt; seen.add(stampsInfo[j].b.key); }
-      const steps = Math.max(1, Math.round(totalSteps * (chunkDt / totalDt)));
-      this._flushBuckets(bucketList.filter((b) => seen.has(b.key)));
+    for (const ch of chunks) {
+      const seen = new Set(ch.info.map((x) => x.b.key));
+      const steps = Math.max(1, Math.round(totalSteps * (ch.dtSum / dtTotal)));
+      this._flushBuckets(bucketList().filter((b) => seen.has(b.key)));
+      this.chunkDebug.push({ nStamps: ch.info.length, keys: [...seen], steps });
       this.interleavedSteps += steps;
       eng.step(Math.min(steps, stepBudgetLeft));
       stepBudgetLeft -= steps;
-      // 已沉积的桶清零(下一块重新累积)
-      for (const b of bucketList) { if (seen.has(b.key)) { b.pool.fill(0); b.bristle.fill(0); b.wSum = 0; b.aSum = 0; b.pTipSum = 0; b.wetSum = 0; b.gbSum = 0; b.n = 0; } }
-      idx = end;
+      for (const b of bucketList()) {
+        if (seen.has(b.key)) { b.pool.fill(0); b.bristle.fill(0); b.wSum = 0; b.aSum = 0; b.pTipSum = 0; b.wetSum = 0; b.gbSum = 0; b.n = 0; }
+      }
     }
     return { steps: this.interleavedSteps };
   }

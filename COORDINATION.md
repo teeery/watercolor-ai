@@ -28,6 +28,7 @@
 | `src/paper/` 的 Tx/Ty、σ 钉扎、κ | 由 medium 会话按 `research/moxi2005-close-reading.md` 落地;brush §7 只消费 |
 | `src/brush/strokes.js` | 归 brush 会话;medium 会话不碰 |
 | 文档交叉引用 | brush 会话只在自己文档里写指针,不直接改 medium 的文档 |
+| **干笔 × σ 钉扎/宏观侵蚀(跨会话 TODO)** | medium 的 M1/M2 按"水量门槛"拒收低水笔触(σ 拒新湿格、macroMinWater 蚀除),会整段吃掉干笔/飞白。物理上干笔是"低水高颜料",门槛应看"颜料通量"而非水量。待 medium 会话调;期间 brush-lab 面板用 `params:{sigma0:0, macroCut:0}` 隔离验收 |
 
 ## 4. 分支策略(现状即最优)
 
