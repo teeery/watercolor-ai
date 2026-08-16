@@ -5,7 +5,8 @@ import { mulberry32 } from "../paper/prng.js";
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
-/** 在 mask 上 max-合并一个"软边椭圆(可旋转、可不对称)" */
+/** 在 mask 上 max-合并一个"软边椭圆(可旋转、可不对称)"
+ *  平顶式:内部 d ≤ 1−softN 恒为 1(戳间重叠自然融成平带,无周期峰值=杀印章链),仅边缘软降 */
 export function paintEllipse(mask, w, h, cx, cy, rA, rB, dirX, dirY, soft, { asymHead = 1, asymTail = 1, bias = 0 } = {}) {
   const R = Math.max(rA, rB) + soft + 2;
   const x0 = Math.max(0, Math.floor(cx - R));
@@ -13,6 +14,7 @@ export function paintEllipse(mask, w, h, cx, cy, rA, rB, dirX, dirY, soft, { asy
   const y0 = Math.max(0, Math.floor(cy - R));
   const y1 = Math.min(h - 1, Math.ceil(cy + R));
   const softN = soft / (Math.min(rA, rB) + 1e-6);
+  const inv = 1 / (2 * softN);
   for (let y = y0; y <= y1; y++) {
     const row = y * w;
     for (let x = x0; x <= x1; x++) {
@@ -21,7 +23,7 @@ export function paintEllipse(mask, w, h, cx, cy, rA, rB, dirX, dirY, soft, { asy
       const bb = -dx * dirY + dy * dirX;      // 垂直笔向
       const asym = a < 0 ? asymHead : asymTail;
       const d = Math.sqrt((a * asym / rA) ** 2 + (bb / rB) ** 2);
-      const m = 0.5 - (d - 1 + bias) / (2 * softN + 1e-6);
+      const m = (1 + softN - d) * inv + bias;  // 平顶:内部 1.0、d≥1+softN 为 0
       if (m <= 0) continue;
       const i = row + x;
       const v = m > 1 ? 1 : m;

@@ -24,7 +24,8 @@ export class Bristles {
     this.b = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) this.b[i] = (i + 0.5) / this.N * 2 - 1;
     this.tips = new Float32Array(this.N * 2);
-    this.prev = new Float32Array(this.N * 2);
+    this.hist = new Float32Array(this.N * 2 * 4); // 近 4 戳毛尖历史(连续排线用)
+    this._histHead = 0;
     this.splay = 0;
     this.lineW = Math.min(3, Math.max(1.5, 3 * 16 / this.N)); // 毛厚反比根数保覆盖
     // 毛缘权重(密度函数,形状身份):平头两侧重(双轨边)、圆头中间重、排刷/勾线均匀
@@ -49,9 +50,12 @@ export class Bristles {
     for (let i = 0; i < this.N; i++) {
       this.tips[i * 2] = cx;
       this.tips[i * 2 + 1] = cy;
-      this.prev[i * 2] = cx;
-      this.prev[i * 2 + 1] = cy;
+      for (let k = 0; k < 4; k++) {
+        this.hist[(k * this.N + i) * 2] = cx;
+        this.hist[(k * this.N + i) * 2 + 1] = cy;
+      }
     }
+    this._histHead = 0;
     this.splay = 0;
   }
 
@@ -90,47 +94,57 @@ export class Bristles {
       this.tips[i * 2] = tx;
       this.tips[i * 2 + 1] = ty;
     }
+    // 推入历史(环形,4 槽)
+    const slot = this._histHead;
+    this._histHead = (this._histHead + 1) & 3;
+    for (let i = 0; i < this.N; i++) {
+      this.hist[(slot * this.N + i) * 2] = this.tips[i * 2];
+      this.hist[(slot * this.N + i) * 2 + 1] = this.tips[i * 2 + 1];
+    }
     return width;
   }
 
   /**
-   * 把毛尖**连续拖痕** raster 进 mask2(max 合并):
-   * 段 = prev tip → 当前 tip(相邻戳连线),形成连续排线而非离散点链;
-   * 转角时拖痕甩向外侧 = 刮痕;平头笔两侧权重高 = 双轨边。
+   * 把毛尖**连续折线** raster 进 mask2(max 合并):
+   * 用近 4 戳毛尖历史画 3 段折线 → 连续排线(非离散点链);
+   * 转角时折线甩向外侧 = 刮痕;平头笔两侧权重高 = 双轨边。
    * @param {Float32Array} mask2 毛缘 mask(w*h)
    * @param {number} w,h 画布
    */
   paintMarks(mask2, w, h) {
     const hw = this.lineW * 0.5;
+    // 按时间序取历史点:最旧 → 最新
     for (let i = 0; i < this.N; i++) {
-      const px = this.prev[i * 2], py = this.prev[i * 2 + 1];
-      const tx = this.tips[i * 2], ty = this.tips[i * 2 + 1];
-      const dx = tx - px, dy = ty - py;
-      const len = Math.hypot(dx, dy);
-      if (len < 0.01) { this.prev[i * 2] = tx; this.prev[i * 2 + 1] = ty; continue; }
-      const ux = dx / len, uy = dy / len;
       const wt = this.edgeW[i];
-      const x0 = Math.max(0, Math.floor(Math.min(px, tx) - hw - 1));
-      const x1 = Math.min(w - 1, Math.ceil(Math.max(px, tx) + hw + 1));
-      const y0 = Math.max(0, Math.floor(Math.min(py, ty) - hw - 1));
-      const y1 = Math.min(h - 1, Math.ceil(Math.max(py, ty) + hw + 1));
-      for (let y = y0; y <= y1; y++) {
-        const row = y * w;
-        for (let x = x0; x <= x1; x++) {
-          // 点到线段距离(参数投影)
-          const vx = x - px, vy = y - py;
-          let t = vx * ux + vy * uy;
-          if (t < 0) t = 0; else if (t > len) t = len;
-          const qx = px + ux * t - x, qy = py + uy * t - y;
-          const d = Math.hypot(qx, qy);
-          const m = (1 - d / hw) * wt;
-          if (m <= 0) continue;
-          const idx = row + x;
-          if (m > mask2[idx]) mask2[idx] = m;
+      for (let seg = 0; seg < 3; seg++) {
+        const k0 = (this._histHead + seg) & 3;
+        const k1 = (this._histHead + seg + 1) & 3;
+        const px = this.hist[(k0 * this.N + i) * 2], py = this.hist[(k0 * this.N + i) * 2 + 1];
+        const tx = this.hist[(k1 * this.N + i) * 2], ty = this.hist[(k1 * this.N + i) * 2 + 1];
+        const dx = tx - px, dy = ty - py;
+        const len = Math.hypot(dx, dy);
+        if (len < 0.01) continue;
+        const ux = dx / len, uy = dy / len;
+        const x0 = Math.max(0, Math.floor(Math.min(px, tx) - hw - 1));
+        const x1 = Math.min(w - 1, Math.ceil(Math.max(px, tx) + hw + 1));
+        const y0 = Math.max(0, Math.floor(Math.min(py, ty) - hw - 1));
+        const y1 = Math.min(h - 1, Math.ceil(Math.max(py, ty) + hw + 1));
+        for (let y = y0; y <= y1; y++) {
+          const row = y * w;
+          for (let x = x0; x <= x1; x++) {
+            // 点到线段距离(参数投影)
+            const vx = x - px, vy = y - py;
+            let t = vx * ux + vy * uy;
+            if (t < 0) t = 0; else if (t > len) t = len;
+            const qx = px + ux * t - x, qy = py + uy * t - y;
+            const d = Math.hypot(qx, qy);
+            const m = (1 - d / hw) * wt;
+            if (m <= 0) continue;
+            const idx = row + x;
+            if (m > mask2[idx]) mask2[idx] = m;
+          }
         }
       }
-      this.prev[i * 2] = tx;
-      this.prev[i * 2 + 1] = ty;
     }
   }
 }
