@@ -19,12 +19,12 @@ export class Bristles {
     this.spring = brush.spring ?? 0.7;
     this.kStiff = 0.35;
     this.tau = 0.4;          // splay 迟滞时间常数 s
-    this.kCurl = 14;         // 转向离心系数:毛甩到转角外侧的幅度
+    this.kCurl = 20;         // 转向离心系数:毛甩到转角外侧的幅度
     // 横向偏移均匀分布(确定性;毛的"出身")
     this.b = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) this.b[i] = (i + 0.5) / this.N * 2 - 1;
     this.tips = new Float32Array(this.N * 2);
-    this.hist = new Float32Array(this.N * 2 * 4); // 近 4 戳毛尖历史(连续排线用)
+    this.hist = new Float32Array(this.N * 2 * 6); // 近 6 戳毛尖历史(连续排线用,更长丝缕)
     this._histHead = 0;
     this.splay = 0;
     this.lineW = Math.min(3, Math.max(1.5, 3 * 16 / this.N)); // 毛厚反比根数保覆盖
@@ -34,7 +34,7 @@ export class Bristles {
     for (let i = 0; i < this.N; i++) {
       const b = this.b[i], ab = Math.abs(b);
       switch (shape) {
-        case "flat": this.edgeW[i] = 0.15 + 1.7 * ab * ab; break;
+        case "flat": this.edgeW[i] = 0.45 + 1.1 * ab * ab; break;
         case "round": this.edgeW[i] = 1 - 0.5 * ab; break;
         case "wash": this.edgeW[i] = 1 - 0.8 * ab * ab; break;
         default: this.edgeW[i] = 1; break;
@@ -50,7 +50,7 @@ export class Bristles {
     for (let i = 0; i < this.N; i++) {
       this.tips[i * 2] = cx;
       this.tips[i * 2 + 1] = cy;
-      for (let k = 0; k < 4; k++) {
+      for (let k = 0; k < 6; k++) {
         this.hist[(k * this.N + i) * 2] = cx;
         this.hist[(k * this.N + i) * 2 + 1] = cy;
       }
@@ -96,7 +96,7 @@ export class Bristles {
     }
     // 推入历史(环形,4 槽)
     const slot = this._histHead;
-    this._histHead = (this._histHead + 1) & 3;
+    this._histHead = (this._histHead + 1) % 6;
     for (let i = 0; i < this.N; i++) {
       this.hist[(slot * this.N + i) * 2] = this.tips[i * 2];
       this.hist[(slot * this.N + i) * 2 + 1] = this.tips[i * 2 + 1];
@@ -106,19 +106,20 @@ export class Bristles {
 
   /**
    * 把毛尖**连续折线** raster 进 mask2(max 合并):
-   * 用近 4 戳毛尖历史画 3 段折线 → 连续排线(非离散点链);
+   * 用近 6 戳毛尖历史画 5 段折线 → 连续排线(非离散点链);
    * 转角时折线甩向外侧 = 刮痕;平头笔两侧权重高 = 双轨边。
    * @param {Float32Array} mask2 毛缘 mask(w*h)
    * @param {number} w,h 画布
+   * @param {number} gb 当前飞白强度(0..1):线宽随干度加粗(干笔丝缕更醒目)
    */
-  paintMarks(mask2, w, h) {
-    const hw = this.lineW * 0.5;
+  paintMarks(mask2, w, h, gb = 0) {
+    const hw = this.lineW * (1 + gb * 1.4) * 0.5;
     // 按时间序取历史点:最旧 → 最新
     for (let i = 0; i < this.N; i++) {
       const wt = this.edgeW[i];
-      for (let seg = 0; seg < 3; seg++) {
-        const k0 = (this._histHead + seg) & 3;
-        const k1 = (this._histHead + seg + 1) & 3;
+      for (let seg = 0; seg < 5; seg++) {
+        const k0 = (this._histHead + seg) % 6;
+        const k1 = (this._histHead + seg + 1) % 6;
         const px = this.hist[(k0 * this.N + i) * 2], py = this.hist[(k0 * this.N + i) * 2 + 1];
         const tx = this.hist[(k1 * this.N + i) * 2], ty = this.hist[(k1 * this.N + i) * 2 + 1];
         const dx = tx - px, dy = ty - py;

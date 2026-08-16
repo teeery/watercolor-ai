@@ -175,8 +175,8 @@ export class BrushState {
         const F = eng.paper.F;
         const w = eng.w, h = eng.h;
         const g = Math.min(1, (gbAvg - 0.55) / 0.45);
-        // 阈值随干度上升:gb=0.55 不裂 → gb=1 时约 85% 断掉、15% 留成丝(越干越疏,单调)
-        const thr = 0.85 * g;
+        // 阈值随干度上升:gb=0.55 不裂 → gb=1 时约 80% 断掉、20% 留成丝(越干越疏,单调,保留读得见的断带)
+        const thr = 0.8 * g;
         const dlen = Math.hypot(b.dirX, b.dirY) || 1;
         const ux = b.dirX / dlen, uy = b.dirY / dlen;
         const sx = Math.round(ux), sy = Math.round(uy); // 拉伸采样方向(±1 格)
@@ -249,7 +249,7 @@ export class BrushState {
         b.dirX += dx; b.dirY += dy;
         const soft = Math.max(4, this.ds * 1.4); // 软边带加宽:相邻戳 rim 充分交叠,消弧纹扇贝
         paintFootprint(this.brush.shape, b.pool, eng.w, eng.h, xi, yi, dx, dy, width * 1.4, soft, null);
-        this.bristles.paintMarks(b.bristle, eng.w, eng.h);
+        this.bristles.paintMarks(b.bristle, eng.w, eng.h, gb);
         return { dt, seg: b };
       }
       return null;

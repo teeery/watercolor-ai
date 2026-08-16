@@ -178,14 +178,14 @@ function blit(studio, col, row, label) {
   const st = makeStudio();
   st.apply({
     type: "wet-wash", brush: { name: "大排刷", width: 44 },
-    load: { water: 0.7, pigment: { color: "#6a6a3a", amount: 0.9 } },
+    load: { water: 0.35, pigment: { color: "#6a6a3a", amount: 0.9 } },
     motion: { verb: "拖", speed: [0.2] },
-    interleave: { on: true, budget: 90 },
+    interleave: { on: true, budget: 180 }, // 低装水 + 大预算:前段在笔画内真正干透(出沉积环/露纸),后段仍湿
     path: [[120, 360], [1240, 400]],
   });
   const bs = st.painter.lastBrushState;
-  ok("⑨ interleave 触发", bs.interleave === true && bs.interleavedSteps >= 50, `steps=${bs.interleavedSteps}`);
-  st.engine.step(180); // 让前段充分干透(边缘锐利、露纸纹)而后段仍带湿
+  ok("⑨ interleave 触发", bs.interleave === true && bs.interleavedSteps >= 100, `steps=${bs.interleavedSteps}`);
+  st.engine.step(10); // 立即渲染:湿度梯度不被后续统一干燥抹平
   blit(st, 2, 2, "⑨ 一笔之内干燥");
 }
 
