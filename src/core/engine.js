@@ -534,6 +534,7 @@ export class WatercolorEngine {
     this._lastMaxU = maxU; // 静止短路判断用的"上一步流速"
 
     // ---------- 5) 沉积（纸谷偏置 + 细颗粒调制） ----------
+    // Curtis 1997 §4.5：吸附 ∝ (1 − σ·h)，h 为纸高 → 谷多吸附、峰少吸附（bugfix：原 +hb 符号反）
     mark("4-pigment");
     const dep = p.deposit, expo = p.exposure;
     const gran = this.pigment.granulation, stain = this.pigment.staining;
@@ -544,7 +545,7 @@ export class WatercolorEngine {
       if (!M[i]) continue;
       const hb = H[i] - 0.5;
       const grain = F[i] - 0.5;
-      let kk = depScale * (1 + expo * hb) * (1 + granScale * grain);
+      let kk = depScale * (1 - expo * hb) * (1 + granScale * grain);
       kk = kk < 0 ? 0 : kk > 0.5 ? 0.5 : kk;
       let total = 0;
       for (let c = 0; c < ch; c++) total += P[c][i];
@@ -584,13 +585,15 @@ export class WatercolorEngine {
     }
 
     // ---------- 7) 湿区边缘加深 ----------
+    // bugfix：e = M − blur(M)（湿区内侧边带）。原实现 e = blur(M) − M 对 M=1 格恒 ≤0，
+    // 过不了 e>0.02 门槛 → edgeK 从未生效（Curtis 1997 精读复核纠错 #2）。
     mark("6-front");
     this._blurM(x0, y0, x1, y1, p.blurR);
     const edgeK = p.edgeK, Mb = this._Mb;
     for (let k = 0; k < ac; k++) {
       const i = al[k];
       if (!M[i]) continue;
-      let e = Mb[i] - (M[i] ? 1 : 0);
+      let e = (M[i] ? 1 : 0) - Mb[i];
       if (e <= 0.02) continue;
       e = e > 1 ? 1 : e;
       const kk = edgeK * e;
@@ -610,6 +613,8 @@ export class WatercolorEngine {
     // ---------- 8) 蒸发（边缘先干 + 咖啡环） ----------
     // 注意：本阶段向邻格 P[c][ii] 原地乘减（跨格写依赖，迭代顺序敏感）→
     // 必须保持 bbox 栅格序遍历，不能换成活跃集（活跃集顺序会被出列打乱）。
+    // bugfix：e = M − blur(M)（湿区内侧边带）。原实现极性反 → evapEdge 与咖啡环拉取
+    // 只作用于湿区外的干边带（0<W≤θ 外沿格），内侧边缘从不加速蒸发（咖啡环弱而均匀的成因）。
     mark("7-edge");
     const evap = p.evap, evapEdge = p.evapEdge;
     for (let y = y0; y <= y1; y++) {
@@ -618,7 +623,7 @@ export class WatercolorEngine {
         const i = row + x;
         const wv = W[i];
         if (wv <= 1e-5) continue;
-        const e = Mb[i] - (M[i] ? 1 : 0);
+        const e = (M[i] ? 1 : 0) - Mb[i];
         const rate = evap * (1 + evapEdge * (e > 0 ? e : 0));
         W[i] = wv * (1 - rate);
         if (e > 0.04) {
