@@ -103,6 +103,8 @@ export class WatercolorEngine {
       shoreCurv: 0.8,   // M2：曲率调制（弯处水线浓，直线段淡/断）
       shoreSplit: 0.5,  // M2：granulation 分档（重颗粒少被拉向水线，滞留透明带沉淀）
       shoreBreak: 0.7,  // M2：沿切线噪声断环深度（0=连续环，1=全断）
+      gravRun: 0,      // M4：重力淌色强度（0=关；高含水区向下淌流 + 沿 x 的纵向通道噪声 → 滴流/淌痕）
+      runW0: 0.2,      // M4：淌色触发水量阈值（低阈值 → 淌动窗口更长）
       ...params,
     };
 
@@ -230,8 +232,9 @@ export class WatercolorEngine {
   }
 
   /** 沉积注入：mask 为 [0,1] Float32Array（已含形状与软边），water 0..1，amount 颜料质量
-   *  M1：新湿格受 σ 钉扎（低水/高钉扎区前沿回退 → 毛边），钉扎格可沿纤维爬行润湿 */
-  depositMask(mask, { water = 0.5, amount = 0.8 } = {}) {
+   *  M1：新湿格受 σ 钉扎（低水/高钉扎区前沿回退 → 毛边），钉扎格可沿纤维爬行润湿
+   *  M4：hard = true 时跳过钉扎/爬行/宏观侵蚀 → 利落硬边（配合 soft≈0.5 的锐 mask） */
+  depositMask(mask, { water = 0.5, amount = 0.8, hard = false } = {}) {
     const { w, h, W, P, Pm, D, Dm, M, ch } = this;
     const { C, G, Tx, Ty } = this.paper;
     const K = this.pigment.K;
@@ -256,7 +259,7 @@ export class WatercolorEngine {
         if (!M[i]) {
           // M1 σ 钉扎：局部水量低于钉扎阈值 → 前沿回退（毛边/锯齿前沿的成因）
           const wAdd = water * m * (0.3 + 0.9 * C[i]);
-          if (p.sigma0 > 0 && wAdd < this._sigmaAt(i)) {
+          if (!hard && p.sigma0 > 0 && wAdd < this._sigmaAt(i)) {
             pinBuf[pinCount] = i;
             pinM[pinCount] = m;
             pinCount++;
@@ -288,7 +291,7 @@ export class WatercolorEngine {
       }
     }
     // M1 毛细爬行：钉扎格沿纤维方向的邻格已湿 → 爬行润湿（方向性 toe/分支）
-    for (let t = 0; t < pinCount; t++) {
+    if (!hard) for (let t = 0; t < pinCount; t++) {
       const i = pinBuf[t];
       const m = pinM[t];
       const x = i % w, y = (i / w) | 0;
@@ -321,7 +324,7 @@ export class WatercolorEngine {
     // M2.2/M2.3 宏观侵蚀：新湿格边界按宏观噪声迭代蚀除（缺口深度跟随噪声值）
     //  M2.3 保护：低水笔触不蚀；与旧湿格相邻处不蚀（湿接白缝）
     //  M2.4：湿邻保护扩到 8 邻域；阈值加高频抖动（消直角方冲）；深度随笔触尺寸自适应
-    if (p.macroCut > 0 && water >= p.macroMinWater) {
+    if (!hard && p.macroCut > 0 && water >= p.macroMinWater) {
       const minDim = Math.min(x1 - x0, y1 - y0);
       const cutN = Math.min(p.macroCut, Math.max(4, Math.round(0.11 * minDim)));
       for (let iter = 0; iter < cutN; iter++) {
@@ -369,10 +372,12 @@ export class WatercolorEngine {
   }
 
   /** 清色（lift）：mask 内溶液与沉积按比例移除，加少量水；
-   *  dir = 擦拭方向（弧度），残留噪声沿该方向拉伸 → 平行条纹沟槽 */
-  liftMask(mask, { liftP = 0.6, liftD = 0.35, water = 0.3, dir = 0 } = {}) {
-    const { w, h, W, P, Pm, D, Dm, ch } = this;
+   *  dir = 擦拭方向（弧度），残留噪声沿该方向拉伸 → 平行条纹沟槽
+   *  M4：被移除的颜料沿 dir 推挤 → 起收笔边缘堆挤（known issue #6） */
+  liftMask(mask, { liftP = 0.6, liftD = 0.35, water = 0.3, dir = 0, push = 0.5 } = {}) {
+    const { w, h, W, P, Pm, D, Dm, ch, _sP, _s2 } = this;
     const ca = Math.cos(dir), sa = Math.sin(dir);
+    const dxi = Math.round(ca), dyi = Math.round(sa);
     this._qDirty = true;
     for (let y = 0; y < h; y++) {
       const row = y * w;
@@ -385,11 +390,66 @@ export class WatercolorEngine {
         const streak = 0.4 + 1.2 * Math.abs(valueNoise2D(a * 0.06 + 5.3, bb * 0.5, 89) - 0.5);
         const kP = 1 - liftP * m * streak;
         const kD = 1 - liftD * m * streak;
-        for (let c = 0; c < ch; c++) { P[c][i] *= kP; D[c][i] *= kD; }
+        for (let c = 0; c < ch; c++) {
+          _sP[c][i] = (P[c][i] * (1 - kP) + D[c][i] * (1 - kD)) * push;
+          P[c][i] *= kP; D[c][i] *= kD;
+        }
+        _s2[i] = (Pm[i] * (1 - kP) + Dm[i] * (1 - kD)) * push;
         Pm[i] *= kP; Dm[i] *= kD;
         const w0 = W[i];
         W[i] = Math.min(2.0, W[i] + water * m);
         if (w0 <= 0 && W[i] > 0) this._pushActive(i);
+      }
+    }
+    // 第二趟：被推挤的颜料沉积到擦拭前进方向的邻格（mask 边缘处自然堆积）
+    if (push > 0) {
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = row + x;
+          if (mask[i] <= 0) continue;
+          const nx = x + dxi, ny = y + dyi;
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          const n = ny * w + nx;
+          for (let c = 0; c < ch; c++) D[c][n] += _sP[c][i];
+          Dm[n] += _s2[i];
+        }
+      }
+    }
+  }
+
+  /** M4 盐花：盐晶吸色推色（心部亮斑 + 外围沉积环 + 星形臂），纯形态算子 */
+  saltMask(cx, cy, r, { arms = 6, lift = 0.55, absorb = 0.25 } = {}) {
+    const { w, h, W, P, Pm, D, Dm, ch } = this;
+    this._qDirty = true;
+    const R = Math.ceil(r * 1.3);
+    const x0 = Math.max(0, Math.floor(cx - R)), x1 = Math.min(w - 1, Math.ceil(cx + R));
+    const y0 = Math.max(0, Math.floor(cy - R)), y1 = Math.min(h - 1, Math.ceil(cy + R));
+    for (let y = y0; y <= y1; y++) {
+      const row = y * w;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x - cx, dy = y - cy;
+        const d = Math.hypot(dx, dy);
+        if (d > R) continue;
+        const i = row + x;
+        const ang = Math.atan2(dy, dx);
+        const star = 0.45 + 0.55 * Math.abs(Math.cos(ang * arms * 0.5)); // M4：星形臂更长（盐眼放射状）
+        if (d < r * star) {
+          // 盐晶吸色：心部颜料被推开（亮斑，D 通道全量吸 → 近白盐眼）
+          for (let c = 0; c < ch; c++) { P[c][i] *= 1 - lift; D[c][i] *= 1 - lift; }
+          Pm[i] *= 1 - lift; Dm[i] *= 1 - lift;
+          W[i] = Math.max(0, W[i] - absorb);
+        } else if (d < r * 1.3) {
+          // 外围沉积环（被推开的颜料聚在盐晶周围）
+          let amb = 0;
+          for (let c = 0; c < ch; c++) amb += P[c][i] + D[c][i];
+          if (amb > 1e-5) {
+            const span = r * 1.3 - r * star;
+            const kk = 0.5 * (1 - Math.max(0, d - r * star) / span); // M4：暗环更强
+            for (let c = 0; c < ch; c++) { D[c][i] += (P[c][i] + D[c][i]) * kk; P[c][i] *= 1 - kk; }
+            Dm[i] += (Pm[i] + Dm[i]) * kk; Pm[i] *= 1 - kk;
+          }
+        }
       }
     }
   }
@@ -646,6 +706,10 @@ export class WatercolorEngine {
         const kk = kap < 0.2 ? 0.2 : kap > 1.5 ? 1.5 : kap;
         let uxv = -(W[iR] - W[iL]) * 0.5 * kPress * kk - (H[iR] - H[iL]) * 0.5 * kSlope * wv;
         let uyv = -(W[iD] - W[iU]) * 0.5 * kPress * kk + grav * wv - (H[iD] - H[iU]) * 0.5 * kSlope * wv;
+        if (p.gravRun > 0 && wv > p.runW0) {
+          // M4：重力淌色——高含水区向下淌流，沿 x 的通道噪声形成纵向滴流/淌痕
+          uyv += p.gravRun * wv * (0.5 + valueNoise2D(x * 0.07 + 2.2, 3.7, 47));
+        }
         if (kFib > 0) {
           const tdot = uxv * Tx[i] + uyv * Ty[i];
           uxv += tdot * Tx[i] * kFib;

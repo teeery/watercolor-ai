@@ -252,14 +252,14 @@ export class StrokePainter {
             this.ribbon(stroke.path, {
               radius: stroke.radius ?? 50,
               radiusEnd: stroke.radiusEnd ?? (stroke.radius ?? 50) * 0.92,
-              soft: 7, jag: 0.14,
+              soft: stroke.hard ? 0.5 : (stroke.soft ?? 7), jag: 0.14,
             });
-            eng.depositMask(this.mask, { water, amount: amount / layers });
+            eng.depositMask(this.mask, { water, amount: amount / layers, hard: stroke.hard ?? false });
             eng.step(40);
           } else {
             const { cx, cy, rx, ry } = stroke.region;
-            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: 0.3, soft: 6 });
-            eng.depositMask(this.mask, { water, amount: amount / layers });
+            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: 0.3, soft: stroke.hard ? 0.5 : (stroke.soft ?? 6) });
+            eng.depositMask(this.mask, { water, amount: amount / layers, hard: stroke.hard ?? false });
             eng.step(40);
           }
         }
@@ -270,12 +270,12 @@ export class StrokePainter {
           this.ribbon(stroke.path, {
             radius: stroke.radius ?? 40,
             radiusEnd: stroke.radiusEnd ?? (stroke.radius ?? 40) * 0.9,
-            soft: 9, jag: 0.1,
+            soft: stroke.soft ?? 9, jag: 0.1,
           });
           eng.depositMask(this.mask, { water: water * 0.7, amount });
         } else {
           const { cx, cy, rx, ry } = stroke.region;
-          this.blob(cx, cy, rx, ry, { jag: 0.25, soft: 8 });
+          this.blob(cx, cy, rx, ry, { jag: 0.25, soft: stroke.soft ?? 8 });
           eng.depositMask(this.mask, { water: water * 0.7, amount });
         }
         break;
@@ -314,7 +314,24 @@ export class StrokePainter {
         eng.liftMask(this.mask, {
           liftP: stroke.liftP ?? 0.6, liftD: stroke.liftD ?? 0.35, water: 0.3,
           dir: stroke.dir ?? 0,
+          push: stroke.push ?? 0.5, // M4：边缘堆挤
         });
+        break;
+      }
+      case "salt": {
+        // M4 盐花：在湿区撒盐晶（幂律尺寸 + 高斯散布），每颗盐吸色推色成星形亮斑
+        const { cx, cy } = stroke.center ?? { cx: 320, cy: 240 };
+        const count = stroke.count ?? 14, spread = stroke.spread ?? 60;
+        for (let s = 0; s < count; s++) {
+          const a = this.rng() * Math.PI * 2;
+          const d = Math.sqrt(this.rng()) * spread;
+          const t = Math.sqrt(this.rng());
+          const r = (stroke.rMin ?? 2) + (stroke.rMax ?? 7 - (stroke.rMin ?? 2)) * t;
+          eng.saltMask(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r, {
+            arms: stroke.arms ?? (5 + Math.floor(this.rng() * 3)),
+            lift: stroke.lift ?? 0.55,
+          });
+        }
         break;
       }
       default:

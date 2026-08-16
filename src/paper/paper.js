@@ -4,26 +4,35 @@
 // M1：纤维方向 θ = 低频 value noise（平滑）＋预设主方向偏置；H 叠加沿纤维拉伸的条状分量
 import { fbmField, fbm2D, valueNoise2D } from "./noise.js";
 
+/** M4：纸纹三档预设（hot = 热压细纹 / cold = 中纹默认 / rough = 粗纹方向性强）
+ *  注意：speckleFreq 越低 → 颗粒聚簇越粗（rough 用低频粗簇，hot 用高频细砂） */
+const PAPER_PRESETS = {
+  hot: { amplitude: 0.4, freq: 0.012, grainFreq: 0.14, grainAmp: 0.25, speckleFreq: 0.5, fiberAmp: 0.05, capScale: 0.3 },
+  cold: {},
+  rough: { amplitude: 1.6, freq: 0.03, grainFreq: 0.2, grainAmp: 1.0, speckleFreq: 0.16, fiberAmp: 0.42, fiberBias: 0.4, capScale: 0.75 },
+};
+
 /**
  * @param {number} w 网格宽
  * @param {number} h 网格高
- * @param {object} opt { seed, freq(纸纹主频), octaves, amplitude(纸纹起伏幅度), capScale, capOff, grainFreq, grainAmp,
+ * @param {object} opt { seed, preset('hot'|'cold'|'rough'), freq(纸纹主频), octaves, amplitude, capScale, capOff, grainFreq, grainAmp,
  *   fiberFreq(方向场频率), fiberBias(预设主方向弧度), fiberAmp(H 条状分量幅度) }
  */
-export function makePaper(w, h, {
-  seed = 0,
-  freq = 0.018,
-  octaves = 5,
-  amplitude = 1.0,   // H 的起伏幅度（>0）
-  capScale = 0.5,
-  capOff = 0.35,
-  grainFreq = 0.09,
-  grainAmp = 0.5,
-  speckleFreq = 0.42,
-  fiberFreq = 0.012,   // M1：纤维方向场频率（低频 → 大域平滑转向）
-  fiberBias = 0,       // M1：预设主方向（弧度；0 = 纯噪声方向）
-  fiberAmp = 0.18,     // M1：H 沿纤维条状分量的幅度（保守起步，防"木纹滤镜"）
-} = {}) {
+export function makePaper(w, h, { preset = "cold", ...userOpts } = {}) {
+  const {
+    seed = 0,
+    freq = 0.018,
+    octaves = 5,
+    amplitude = 1.0,   // H 的起伏幅度（>0）
+    capScale = 0.5,
+    capOff = 0.35,
+    grainFreq = 0.09,
+    grainAmp = 0.5,
+    speckleFreq = 0.42,
+    fiberFreq = 0.012,   // M1：纤维方向场频率（低频 → 大域平滑转向）
+    fiberBias = 0,       // M1：预设主方向（弧度；0 = 纯噪声方向）
+    fiberAmp = 0.18,     // M1：H 沿纤维条状分量的幅度（保守起步，防"木纹滤镜"）
+  } = { ...(PAPER_PRESETS[preset] || {}), ...userOpts };
   // H：主纸纹（0..1，中心 0.5 为平均高度）
   const H = fbmField(w, h, { freq, octaves, seed, normalize: true }).data;
   // M1：纤维方向场 θ（低频 value noise + 平滑偏置）

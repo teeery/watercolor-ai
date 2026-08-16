@@ -228,6 +228,19 @@
 - 剖面特性（radius 20）：min 16.6-18.3 / max 22.4-26.1、3-5 瓣、谷二阶差为正（肥圆凹口）、seed 差异成立。
 - vision：**bloom 7/10（上版 4-5）**。圆润菜花瓣成立、无 V 形尖槽、多边形直边与齿轮亮环清除、两花尺寸/朝向/相位差异成立。剩余：rim 亮度宽度偏均匀（可借 M2 切线噪声调制）、大斑略"圆角方"、瓣排布略规整。ring-probe 8 扇区通过（搬运未动，守恒同 M3 前）。
 
+## M4 执行记录（廉价件五件，第一轮完成）
+
+| 件 | 实现 | vision 判定 |
+|---|---|---|
+| 盐花 | `engine.saltMask`：星形吸色（|cos(k·ang)| 形状，D/P 全量吸）＋外围暗环；`salt` 笔触类型（幂律尺寸+散布） | 半成立：亮斑有、暗环有，星臂尺度读不出（待盐晶半径/臂长再调） |
+| 硬边 | stroke `hard` 标志：mask soft→0.5 + depositMask 跳过钉扎/爬行/宏观侵蚀 | ✅ 成立：与 soft 10 软边对比一眼可辨 |
+| 重力淌色 | `gravRun` 参数：W>runW0 时 uy += gravRun·wv·通道噪声（沿 x 的纵向淌道） | 半成立：有纵向拉伸与积色，覆盖/方向性偏弱 |
+| lift 堆挤 | `liftMask push`：移除的颜料沿 dir 推到邻格，mask 边缘自然堆积 | ✅ 成立：缺口周缘暗环清晰（known issue #6 关闭） |
+| 纸纹三档 | `makePaper` preset hot/cold/rough（频率方向修正：rough 用低频粗簇、hot 高频细砂） | 半成立：三档可辨，rough 带横向定向条纹（fiberBias 0.4 略强） |
+
+- 面板：`demo/m4-effects.js`（m4_sheet.png + 5 单面板）；协议新增 `hard` 标志与 `salt` 类型（engine.md v0.2 已预告 salt）。
+- 遗留微调：盐晶臂长/半径映射、gravRun 覆盖范围、rough 纸 fiberBias 降 0.2。均为一轮参数活。
+
 ## 3. 建议执行顺序
 
 依赖图：`D → A → B → C`，廉价件穿插，P2 殿后。
@@ -238,7 +251,7 @@
 | M1 | ✅ A 各向异性纸纹（MoXi 主机制：σ 钉扎+κ 变渗透率+阻滞+渐变固着；Tx/Ty 辅助） | vision 7.5/10（+0.5） | effects_p1 毛边 + vision ✅ |
 | M2 | ✅ B 岸线算子（干燥速度驱动 + 切线断环 + 曲率调制 + granulation 分档） | vision 8.0/10（+0.5），池塘三层结构成立 | crop_pond 剖面 + vision ✅ |
 | M3 | ✅ C bloom 曲率驱动形状（表驱动，搬运不动） | vision bloom 7/10（上版 4-5），多边形直边/齿轮环清除 | crop_pond + ring-probe ✅ |
-| M4 | 廉价件：盐花、硬边、纸纹三档预设、重力淌色、lift 边缘堆挤 | 8 格 effects 面板新增 | 逐件 vision 单评 |
+| M4 | 🔶 廉价件五件（盐花/硬边/纸纹三档/重力淌色/lift堆挤） | 2 成立 3 半成立，无失败项 | m4-effects 面板 + vision |
 | M5 | P2：颜料库四字段（transparency/rewetRate/diffusivity/mass）+ 湿中混色/分离 | 混色 demo | 分离可见、色卡不退化（ΔE ≤ 3.2 保持） |
 
 依赖说明：A 必须先于纸纹三档与方向颗粒（都吃方向场）；B 先于炸花与水洼成环（复用岸线算子）；C 完全独立可与 M2 并行；M4 各件互不依赖可随时穿插；M5 依赖 M2 的 granulation 分档作为分离雏形。
