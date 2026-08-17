@@ -32,7 +32,8 @@ function makeStudio() {
 
 /** 把一个 studio 的渲染结果放进面板格 (col,row) */
 function blit(studio, col, row, label) {
-  const img = studio.render({ upscale: 1 }); // 640×480 网格直出(默认 2× 上采样,面板按网格拼)
+  // 渲染口径:grainShade/edgeDarken 调低(消"砂纸噪点+描边"观感,vision 反复点名),upscale 1 = 网格直出
+  const img = studio.render({ upscale: 1, grainShade: 0.04, edgeDarken: 0.06, granShade: 0.16 });
   const { data } = img;
   for (let y = 0; y < CH; y++) {
     const sy = row * CH + y;
