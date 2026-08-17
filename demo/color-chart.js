@@ -53,6 +53,8 @@ function paintChart(colorSystem) {
     const halfW = CW * 0.30;
     // 锌白覆盖弱（咖啡环把中心流薄）→ 浓档加量保"奶膜体量"（vision：再叠一层浓度）
     const strongAmt = p.name === "锌白" ? 4.2 : 2.0;
+    // M1 容纸度 + M5 沉积：低着色颜料水多时中心被流空（vision：#1/#24 浓偏浅）→ 减水
+    const strongWater = (p.staining ?? 0.5) < 0.3 ? 0.35 : 0.55;
     const pig = { name: p.name, color: p.hex, granulation: p.granulation, staining: p.staining, amount: strongAmt };
     // 稀释档按"同等光学稀释度"取量：amt = x_target/(b·κs0)，x_target=0.35；
     // b 从 hex 线性反射率经 Saunderson 逆变换反推——深色 b 大 → 取量极少 → 真正稀释
@@ -65,7 +67,7 @@ function paintChart(colorSystem) {
       type: "wet-wash",
       path: [[cx - halfW, cyTop - 3], [cx, cyTop + 1], [cx + halfW, cyTop - 2]],
       radius: CH * 0.16, radiusEnd: CH * 0.12,
-      pigment: pig, water: 0.55, layers: 1,
+      pigment: pig, water: strongWater, layers: 1, hard: true,   // 浓档=masstone 参照：跳过 σ 钉扎/爬行/侵蚀 → 实心无洞（vision：#7 闪电白）
     }, 70);
     apply({
       type: "glaze",
@@ -76,7 +78,7 @@ function paintChart(colorSystem) {
     if (colorSystem.channels === 3) label(i + 1, cx, row * CH + CH * 0.82);
   }
   engine.step(400);
-  return studio.render();
+  return studio.render({ edgeDarken: 0.24 }); // 浓档实心后加一圈半透明水线，找回透明水彩线索（vision 建议）
 }
 
 function paintFlatReference() {

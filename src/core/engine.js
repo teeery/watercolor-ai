@@ -99,8 +99,8 @@ export class WatercolorEngine {
       fixRate: 0.5,     // M1：渐变固着率/步（MoXi SIMULATEFIXTURE，替换二值冻结）
       capLam: 3.0,      // M1：容纸度 max(1−ρ/λ, m) 的 λ
       capMin: 0.35,     // M1：容纸度的下限 m
-      shoreK: 1.0,      // M2：岸线算子总开关（0=关；干燥速度驱动的向内输运）
-      shoreCurv: 0.8,   // M2：曲率调制（弯处水线浓，直线段淡/断）
+      shoreK: 0.65,     // M2：岸线算子总开关（0=关；干燥速度驱动的向内输运）——集成调参：大水量湿铺色块上原 1.0 掏空邻居成"闪电白"，柔化
+      shoreCurv: 0.5,   // M2：曲率调制（弯处水线浓，直线段淡/断）——集成调参：0.8 在噪声边界上放大成折线 artifact
       shoreSplit: 0.5,  // M2：granulation 分档（重颗粒少被拉向水线，滞留透明带沉淀）
       shoreBreak: 0.7,  // M2：沿切线噪声断环深度（0=连续环，1=全断）
       gravRun: 0,      // M4：重力淌色强度（0=关；高含水区向下淌流 + 沿 x 的纵向通道噪声 → 滴流/淌痕）
@@ -1046,7 +1046,7 @@ export class WatercolorEngine {
               // M2：granulation 分档——重颗粒少被拉向水线（滞留在透明带沉淀 = 分离雏形）
               let kk = kkBase * shore;
               if (p.shoreSplit > 0) kk *= 1 - p.shoreSplit * this.pigment.granulation * 0.5;
-              if (kk > 0.4) kk = 0.4;
+              if (kk > 0.3) kk = 0.3; // 集成调参：原 0.4 上限仍会掏空内邻格
               let total = 0;
               for (let c = 0; c < ch; c++) total += P[c][ii];
               if (total <= 1e-6) continue;
