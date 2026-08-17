@@ -1,6 +1,6 @@
 # Montesdeoca 姊妹篇精读复核(brush 分支,2017 C&G + NPAR)
 
-> 材料:`research/montesdeoca2017-cg.txt`(15 页)+ `research/montesdeoca2017-npar.txt`(10 页)。
+> 材料:`research/papers/medium/montesdeoca2017-cg.txt`(15 页)+ `research/papers/medium/montesdeoca2017-npar.txt`(10 页)。
 > Montesdeoca et al., "Art-directed watercolor stylization of 3D animations in real-time"(C&G 2017);"Edge- and substrate-based effects for watercolor stylization"(NPAR 2017)。
 
 ## 1. 方法骨架(引擎术语)

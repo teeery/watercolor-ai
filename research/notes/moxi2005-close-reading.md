@@ -1,6 +1,6 @@
 # MoXi 2005 精读复核(brush 分支,对照 medium-upgrade M1 各向异性纸纹)
 
-> 材料:`research/moxi.pdf`(用户提供)+ `research/moxi2005.txt`(提取 8 页)。
+> 材料:`research/papers/medium/moxi2005.pdf`(用户提供)+ `research/papers/medium/moxi2005.txt`(提取 8 页)。
 > Chu & Tai, "MoXi: Real-Time Ink Dispersion in Absorbent Paper", SIGGRAPH 2005。
 
 ## 1. 方法骨架(引擎术语)

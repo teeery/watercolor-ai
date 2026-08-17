@@ -26,7 +26,7 @@ for (const f of readdirSync(SRC_DIR)) {
 }
 console.log(`解析 ${Object.keys(raw).length} 支实测颜料光谱`);
 // Golden HB（D65/10°，400-700@10nm，白背卡 6mil 干膜）——现代颜料统一协议数据
-const goldenDoc = JSON.parse(readFileSync("research/color/golden-hb.json", "utf8"));
+const goldenDoc = JSON.parse(readFileSync("research/data/golden-hb.json", "utf8"));
 const goldenNm = goldenDoc.nm;
 const golden = goldenDoc.paints;
 console.log(`装载 Golden ${Object.keys(golden).length} 支`);

@@ -1,6 +1,6 @@
 # Wetbrush 2015 精读复核（brush 分支,对 v2 毛层与空间水库的原文对照）
 
-> 材料:`research/2816795.2818066.pdf`(ACM 原件,15.3MB,用户提供;文本提取 `research/wetbrush2015.txt`,11 页)。
+> 材料:`research/papers/medium/wetbrush2015.pdf`(ACM 原件,15.3MB,用户提供;文本提取 `research/papers/medium/wetbrush2015.txt`,11 页)。
 > Chen, Kim, Ito, Wang, "Wetbrush: GPU-based 3D painting simulation at the bristle level", SIGGRAPH Asia 2015。
 > 方法:子代理原文精读 → 主代理整合。本文只记录与笔刷动力学 v2 相关的结论。
 

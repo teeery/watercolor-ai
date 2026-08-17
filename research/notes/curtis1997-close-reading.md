@@ -1,6 +1,6 @@
 # Curtis 1997 精读复核（brush 分支,对 v2 笔刷动力学与引擎现状的原文对照）
 
-> 材料:`research/curtis1997.pdf`(UW 官方 paper_small 版,文字完整)+ `research/us6198489.txt`(同模型专利全文,交叉验证)+ `research/curtis1997.txt`(提取文本)。
+> 材料:`research/papers/medium/curtis1997.pdf`(UW 官方 paper_small 版,文字完整)+ `research/papers/medium/us6198489-curtis-patent.txt`(同模型专利全文,交叉验证)+ `research/papers/medium/curtis1997.txt`(提取文本)。
 > 方法:子代理原文精读 → 主代理对两处"可验证代码事实"本地复核(已确认)。行号以复核时的 M0 工作区 `src/core/engine.js` 为准,行号会漂,以表达式为准。
 > 结论口径:本文只记录与**笔刷动力学 v2** 相关的部分;介质引擎的修复建议归 `medium-upgrade` 分支,不在本分支动 `src/core/`。
 
@@ -63,4 +63,4 @@ Curtis 1997 = **有序 glaze 集合**,每层 glaze 独立跑三层流体模拟(�
 
 ## 7. 网络获取方法(环境备忘)
 
-本沙箱 Windows PowerShell 5.1 的 .NET 网络栈对外 HTTPS 全面失效(连接被关闭),**Python 3.11 urllib 正常**。可用路径:`probe/download-papers.py`(分块读 + 重试)与 `probe/extract-text.py`(pypdf 提取,venv 已装 pypdf)。UW 服务器慢,必须分块读并耐心重试;citeseerx / web.archive.org / UBC 从本机不可达(超时/403),Wetbrush 全文需人工下载后放入 `research/wetbrush2015.pdf`。
+本沙箱 Windows PowerShell 5.1 的 .NET 网络栈对外 HTTPS 全面失效(连接被关闭),**Python 3.11 urllib 正常**。可用路径:`probe/download-papers.py`(分块读 + 重试)与 `probe/extract-text.py`(pypdf 提取,venv 已装 pypdf)。UW 服务器慢,必须分块读并耐心重试;citeseerx / web.archive.org / UBC 从本机不可达(超时/403),Wetbrush 全文需人工下载后放入 `research/papers/medium/wetbrush2015.pdf`。

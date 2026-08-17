@@ -1,6 +1,6 @@
 # Zheng 2017 精读复核（brush 分支,Example-Based Brushes 对照笔触层）
 
-> 材料:`research/3092919.3092929.pdf`(用户提供,10 页)+ `research/paper3092929.txt`(提取文本)。
+> 材料:`research/papers/medium/zheng2017-example-brushes.pdf`(用户提供,10 页)+ `research/papers/medium/zheng2017-example-brushes.txt`(提取文本)。
 > Zheng, Milliez, Gross, Sumner, "Example-Based Brushes for Coherent Stylized Renderings", NPAR 2017(ETH Zurich / Disney Research Zurich)。
 
 ## 1. 方法骨架

@@ -1,6 +1,6 @@
 # DiVerdi 2010 精读复核(brush 分支,对照 v2 §3 毛层)
 
-> 材料:`research/1889863.1889889.pdf`(用户提供,ACM 版)+ `research/diverti2010.txt`(提取 8 页)。
+> 材料:`research/papers/medium/diverti2010-bristle-brush.pdf`(用户提供,ACM 版)+ `research/papers/medium/diverti2010-bristle-brush.txt`(提取 8 页)。
 > DiVerdi, Krishnaswamy, Mech, Ito, "Industrial-strength painting with a virtual bristle brush", VRST 2010(Adobe 商业画笔内核)。
 
 ## 1. 方法骨架(引擎术语)

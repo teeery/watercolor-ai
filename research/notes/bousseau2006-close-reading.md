@@ -1,6 +1,6 @@
 # Bousseau 2006 精读复核(brush 分支)
 
-> 材料:`research/bousseau2006.pdf`(INRIA 作者主页版,22.6MB)+ `research/bousseau2006.txt`(提取 9 页)。
+> 材料:`research/papers/medium/bousseau2006.pdf`(INRIA 作者主页版,22.6MB)+ `research/papers/medium/bousseau2006.txt`(提取 9 页)。
 > Bousseau, Kaplan, Thollot, Sillion, "Interactive watercolor rendering with temporal coherence and abstraction", NPAR 2006。
 
 ## 1. 前提纠错(重要)

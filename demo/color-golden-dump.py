@@ -1,4 +1,4 @@
-# 一次性转换：Golden HB xlsx → research/color/golden-hb.json（供 color-data-build.js 使用）
+# 一次性转换：Golden HB xlsx → research/data/golden-hb.json（供 color-data-build.js 使用）
 import openpyxl, json
 
 wb = openpyxl.load_workbook(
@@ -20,5 +20,5 @@ doc = {
     "nm": [400 + i * 10 for i in range(31)],
     "paints": out,
 }
-json.dump(doc, open("research/color/golden-hb.json", "w"), indent=1)
+json.dump(doc, open("research/data/golden-hb.json", "w"), indent=1)
 print("paints:", len(out))
