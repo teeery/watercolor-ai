@@ -334,6 +334,25 @@ export class StrokePainter {
         }
         break;
       }
+      case "cover": {
+        // 协议 v0.3：整幅覆盖湿铺（region = 整数格矩形区域 {x0,y0,x1,y1}），
+        // 治愈"agent 判断 ribbon 几何失误 → 画面留白带"的问题
+        const { x0, y0, x1, y1 } = stroke.region;
+        const soft = stroke.soft ?? 10;
+        const { w, h } = this.eng;
+        this.clear();
+        for (let y = Math.max(0, y0 - soft); y <= Math.min(h - 1, y1 + soft); y++) {
+          for (let x = Math.max(0, x0 - soft); x <= Math.min(w - 1, x1 + soft); x++) {
+            const dx = Math.max(x0 - x, 0, x - x1);
+            const dy = Math.max(y0 - y, 0, y - y1);
+            const d = Math.max(dx, dy);
+            const m = d <= 0 ? 1 : d >= soft ? 0 : 1 - d / soft;
+            if (m > 0) this.mask[y * w + x] = m;
+          }
+        }
+        eng.depositMask(this.mask, { water, amount, hard: stroke.hard ?? false });
+        break;
+      }
       default:
         throw new Error(`unknown stroke type: ${stroke.type}`);
     }
