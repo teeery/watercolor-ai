@@ -354,6 +354,45 @@ export class StrokePainter {
         eng.depositMask(this.mask, { water, amount, hard: stroke.hard ?? false });
         break;
       }
+      case "poly": {
+        // 协议 v0.3：任意多边形填充（直边屋顶/山墙等主体形状；软边 = 到边界的距离）
+        const pts = stroke.points;
+        const soft = stroke.soft ?? 3;
+        const { w, h } = this.eng;
+        this.clear();
+        const n = pts.length;
+        const bx0 = Math.max(0, Math.floor(Math.min(...pts.map((p) => p[0])) - soft));
+        const bx1 = Math.min(w - 1, Math.ceil(Math.max(...pts.map((p) => p[0])) + soft));
+        const by0 = Math.max(0, Math.floor(Math.min(...pts.map((p) => p[1])) - soft));
+        const by1 = Math.min(h - 1, Math.ceil(Math.max(...pts.map((p) => p[1])) + soft));
+        const distSeg = (px, py, ax, ay, bx, by) => {
+          const dx = bx - ax, dy = by - ay;
+          const len2 = dx * dx + dy * dy;
+          let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+        };
+        for (let y = by0; y <= by1; y++) {
+          for (let x = bx0; x <= bx1; x++) {
+            let inside = false;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+              const [xi, yi] = pts[i], [xj, yj] = pts[j];
+              if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+            }
+            let m = inside ? 1 : 0;
+            if (!inside && soft > 0) {
+              let d = Infinity;
+              for (let i = 0, j = n - 1; i < n; j = i++) {
+                d = Math.min(d, distSeg(x, y, pts[i][0], pts[i][1], pts[j][0], pts[j][1]));
+              }
+              m = 1 - d / soft;
+            }
+            if (m > 0) this.mask[y * w + x] = m > 1 ? 1 : m;
+          }
+        }
+        eng.depositMask(this.mask, { water, amount, hard: stroke.hard ?? false });
+        break;
+      }
       default:
         throw new Error(`unknown stroke type: ${stroke.type}`);
     }
