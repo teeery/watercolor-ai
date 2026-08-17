@@ -1,17 +1,24 @@
 // 笔触层：stroke 协议 → 形状 mask → 引擎沉积注入
 // 形状：有机 blob（fbm 扰动椭圆）、手绘线（抖动盖章）、溅点
 // 注意：mask 与引擎网格同为左上原点（y 向下）
+// v2.0：新增新管线分流——stroke 带 brush/motion/load.tip/interleave 任一字段 → BrushState
+// （笔刷动力学,见 docs/brush-dynamics.md）;legacy 路径原代码冻结。
 import { mulberry32 } from "../paper/prng.js";
 import { fbm2D, valueNoise2D } from "../paper/noise.js";
+import { isNewPipeline } from "./brush.js";
+import { BrushState } from "./dynamics.js";
 
 export class StrokePainter {
   constructor(engine, { seed = 1, colorSystem = null } = {}) {
     this.eng = engine;
+    this.seed = seed;
     this.rng = mulberry32(seed);
     this.mask = new Float32Array(engine.n);
     this.mask2 = new Float32Array(engine.n);
     this._lastRibbon = null; // 最近一次 ribbon 的 mask（供 clip: "last-ribbon" 用）
     this.colorSystem = colorSystem; // ColorSystem 实例（缺省 → RGB 兜底基）
+    this._brushSeq = 0;            // 新管线每笔索引（per-stroke RNG 流 = painterSeed ^ strokeIndex）
+    this.lastBrushState = null;    // 最近一次新管线 BrushState（brush-lab 断言用）
   }
 
   clear() { this.mask.fill(0); }
@@ -216,6 +223,12 @@ export class StrokePainter {
 
   /** 应用一笔（协议 stroke）：颜料规范 → 颜色系统的每通道 K 基 → 引擎 */
   apply(stroke) {
+    // v2.0 新管线分流（spatter/re-wet/lift 维持现算子,不经过水库）
+    const specialOps = new Set(["spatter", "re-wet", "lift"]);
+    if (isNewPipeline(stroke) && !specialOps.has(stroke.type)) {
+      this.applyNew(stroke);
+      return;
+    }
     const eng = this.eng;
     const pig = stroke.pigment || {};
     // 颜色系统提供 K 基（RGB 3 通道或光谱 16 通道，笔触层不关心维度）
@@ -239,14 +252,14 @@ export class StrokePainter {
             this.ribbon(stroke.path, {
               radius: stroke.radius ?? 50,
               radiusEnd: stroke.radiusEnd ?? (stroke.radius ?? 50) * 0.92,
-              soft: 7, jag: 0.14,
+              soft: stroke.hard ? 0.5 : (stroke.soft ?? 7), jag: 0.14,
             });
-            eng.depositMask(this.mask, { water, amount: amount / layers });
+            eng.depositMask(this.mask, { water, amount: amount / layers, hard: stroke.hard ?? false });
             eng.step(40);
           } else {
             const { cx, cy, rx, ry } = stroke.region;
-            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: 0.3, soft: 6 });
-            eng.depositMask(this.mask, { water, amount: amount / layers });
+            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: 0.3, soft: stroke.hard ? 0.5 : (stroke.soft ?? 6) });
+            eng.depositMask(this.mask, { water, amount: amount / layers, hard: stroke.hard ?? false });
             eng.step(40);
           }
         }
@@ -257,12 +270,12 @@ export class StrokePainter {
           this.ribbon(stroke.path, {
             radius: stroke.radius ?? 40,
             radiusEnd: stroke.radiusEnd ?? (stroke.radius ?? 40) * 0.9,
-            soft: 9, jag: 0.1,
+            soft: stroke.soft ?? 9, jag: 0.1,
           });
           eng.depositMask(this.mask, { water: water * 0.7, amount });
         } else {
           const { cx, cy, rx, ry } = stroke.region;
-          this.blob(cx, cy, rx, ry, { jag: 0.25, soft: 8 });
+          this.blob(cx, cy, rx, ry, { jag: 0.25, soft: stroke.soft ?? 8 });
           eng.depositMask(this.mask, { water: water * 0.7, amount });
         }
         break;
@@ -301,12 +314,64 @@ export class StrokePainter {
         eng.liftMask(this.mask, {
           liftP: stroke.liftP ?? 0.6, liftD: stroke.liftD ?? 0.35, water: 0.3,
           dir: stroke.dir ?? 0,
+          push: stroke.push ?? 0.5, // M4：边缘堆挤
         });
+        break;
+      }
+      case "salt": {
+        // M4 盐花：在湿区撒盐晶（幂律尺寸 + 高斯散布），每颗盐吸色推色成星形亮斑
+        const { cx, cy } = stroke.center ?? { cx: 320, cy: 240 };
+        const count = stroke.count ?? 14, spread = stroke.spread ?? 60;
+        for (let s = 0; s < count; s++) {
+          const a = this.rng() * Math.PI * 2;
+          const d = Math.sqrt(this.rng()) * spread;
+          const t = Math.sqrt(this.rng());
+          const r = (stroke.rMin ?? 2) + (stroke.rMax ?? 7 - (stroke.rMin ?? 2)) * t;
+          eng.saltMask(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r, {
+            arms: stroke.arms ?? (5 + Math.floor(this.rng() * 3)),
+            lift: stroke.lift ?? 0.55,
+          });
+        }
         break;
       }
       default:
         throw new Error(`unknown stroke type: ${stroke.type}`);
     }
+  }
+
+  /** v2.0 新管线:配方 → BrushState → 发射 → 分桶沉积 → interleave(引擎只读 + depositMask,不改引擎) */
+  applyNew(stroke) {
+    const eng = this.eng;
+    const pig = (stroke.load?.pigment ?? stroke.pigment) || {};
+    const K = this.colorSystem ? this.colorSystem.pigmentBasis(pig) : defaultBasis(pig);
+    eng.setPigment({
+      K,
+      granulation: pig.granulation ?? 0.5,
+      staining: pig.staining ?? 0.5,
+    });
+    // 混色提供者:每桶按 tipShare 混合 belly 色与 tip 色(charging);
+    // 无名颜色时用 defaultBasis 兜底(与 legacy 一致)。
+    const cs = this.colorSystem;
+    const bellyRGB = cs && cs.pigmentRGB ? cs.pigmentRGB(pig) : hexToRgb01(pig.color);
+    const tipPig = stroke.load?.tip ?? null;
+    const tipRGB = tipPig ? (cs && cs.pigmentRGB ? cs.pigmentRGB(tipPig) : hexToRgb01(tipPig.color)) : null;
+    const basis = (prov, tipFrac) => {
+      if (prov.tipRGB && tipFrac > 1e-6 && tipFrac < 0.9999) {
+        const [br, bg, bb] = prov.bellyRGB, [tr, tg, tb] = prov.tipRGB;
+        const mix = [br + (tr - br) * tipFrac, bg + (tg - bg) * tipFrac, bb + (tb - bb) * tipFrac];
+        return { K: defaultBasis({ color: mix }), granulation: pig.granulation ?? 0.5, staining: pig.staining ?? 0.5 };
+      }
+      const usePig = tipFrac > 0.5 && prov.tipRGB ? (stroke.load?.tip ?? pig) : pig;
+      const K2 = cs ? cs.pigmentBasis(usePig) : defaultBasis(usePig);
+      return { K: K2, granulation: pig.granulation ?? 0.5, staining: pig.staining ?? 0.5 };
+    };
+    const state = new BrushState(eng, stroke, {
+      painterSeed: this.seed ?? 1,
+      strokeIndex: this._brushSeq++,
+      pigment: { bellyRGB, tipRGB, basis },
+    });
+    state.run();
+    this.lastBrushState = state;
   }
 }
 

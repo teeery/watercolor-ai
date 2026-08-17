@@ -4,9 +4,9 @@ export const scene = [
   // —— 天空（两条横向扫笔湿铺，先浅后深；下带加宽盖过远山顶部，消除白蝴蝶结留白）——
   { stroke: { type: "wet-wash", path: [[30, 100], [320, 84], [610, 104]], radius: 150, radiusEnd: 126, pigment: { color: "#a8c8e0", granulation: 0.15, staining: 0.4, amount: 0.99 }, water: 0.85, layers: 2 }, stepsAfter: 300 },
   { stroke: { type: "wet-wash", path: [[40, 60], [320, 50], [600, 66]], radius: 140, radiusEnd: 124, pigment: { color: "#7da6c9", granulation: 0.2, staining: 0.5, amount: 0.86 }, water: 0.7, layers: 1 }, stepsAfter: 250 },
-  // —— 远山（沿山脊的罩染扫笔）——
-  { stroke: { type: "glaze", path: [[30, 262], [150, 238], [300, 264]], radius: 58, radiusEnd: 44, pigment: { color: "#8fae9c", granulation: 0.3, staining: 0.45, amount: 0.99 }, water: 0.5 }, stepsAfter: 200 },
-  { stroke: { type: "glaze", path: [[340, 264], [500, 242], [620, 260]], radius: 55, radiusEnd: 42, pigment: { color: "#87a795", granulation: 0.3, staining: 0.45, amount: 0.99 }, water: 0.5 }, stepsAfter: 180 },
+  // —— 远山（沿山脊的罩染扫笔；M2.1：上探覆盖天空下缘 + 两山互叠，消白缝）——
+  { stroke: { type: "glaze", path: [[30, 226], [150, 205], [300, 232]], radius: 62, radiusEnd: 46, pigment: { color: "#8fae9c", granulation: 0.3, staining: 0.45, amount: 0.99 }, water: 0.5 }, stepsAfter: 200 },
+  { stroke: { type: "glaze", path: [[268, 234], [500, 210], [620, 230]], radius: 55, radiusEnd: 42, pigment: { color: "#87a795", granulation: 0.3, staining: 0.45, amount: 0.99 }, water: 0.5 }, stepsAfter: 180 },
   // —— 地面（两条横向扫笔湿铺）——
   { stroke: { type: "wet-wash", path: [[20, 420], [320, 402], [620, 416]], radius: 85, radiusEnd: 72, pigment: { color: "#d8c49a", granulation: 0.35, staining: 0.55, amount: 1.06 }, water: 0.65, layers: 2 }, stepsAfter: 300 },
   { stroke: { type: "wet-wash", path: [[20, 452], [320, 444], [620, 450]], radius: 55, radiusEnd: 45, pigment: { color: "#c9a97a", granulation: 0.35, staining: 0.55, amount: 0.92 }, water: 0.5, layers: 1 }, stepsAfter: 250 },

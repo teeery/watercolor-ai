@@ -35,7 +35,9 @@ class ColorSystem {
 ```js
 new WatercolorEngine({ w, h, seed, params, channels })  // channels 由 ColorSystem 决定
 engine.setPigment({ K, granulation, staining })
-engine.depositMask(mask, { water, amount })
+engine.depositMask(mask, { water, amount })   // 可选 { waterMask? }：水走 waterMask、颜料走 mask（brush-dynamics v2 缝）
+engine.wetnessAt(x, y)                        // 只读：纸面湿度查询（brush-dynamics v2 湿纸反馈）
+engine.pickupAt(x, y, r)                      // 只读：接触区溶液+沉积采样（v2.1 脏笔）
 engine.liftMask(mask, opts)
 engine.pushPigmentRadial(cx, cy, radius, strength)
 engine.step(n)
@@ -43,7 +45,8 @@ engine.step(n)
 
 ### StrokePainter（brush/strokes.js）
 
-形状层只产出 mask 并调用 engine.depositMask——**不关心通道维度**。升级运笔（压力曲线、新形状）不动引擎。
+形状层产出 mask 并调用 engine.depositMask——**不关心通道维度**。升级运笔（压力曲线、新形状）不动引擎。
+笔刷动力学（v2，见 `docs/brush-dynamics.md`）在此层之上增加三个**只读/扩展缝**：`wetnessAt`/`pickupAt` 只读查询、`depositMask.waterMask` 水颜分离沉积——都不改变引擎行为（缺省参数 = 旧行为），颜色革命与介质升级依然互不感知。
 
 ### Studio（studio/studio.js）
 

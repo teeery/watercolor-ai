@@ -101,7 +101,7 @@ agent（LLM）与引擎之间的界面。一幅画 = 一份有序的 stroke JSON
 
 > 兼容性：v0.2 新增字段全部可选，现有 `demo/scene.js` 的 v0.1 写法继续有效。Phase 1 起 agent 按 v0.2 书写。
 >
-> **`brush` / `motion` 字段的语义与因果链（笔的身份、水库状态机、飞白涌现、湿纸反馈）见 `docs/brush-dynamics.md`** —— 当前实现只读 shape+颜料+water，笔刷动力学为待建件（known issue #4 的解法）。
+> **`brush` / `motion` 字段的语义与因果链（笔的身份、水库状态机、飞白涌现、湿纸反馈）见 `docs/brush-dynamics.md`** —— 当前实现只读 shape+颜料+water，笔刷动力学为待建件（known issue #4 的解法，`brush` 分支）。
 
 ## 非目标（当前明确不做）
 

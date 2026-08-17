@@ -80,6 +80,8 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - `docs/engine-js.md` — JS 引擎实现说明（数据结构、管线、bloom 算子、参数表、已知问题）
 - `docs/watercolor_engine_spec.md` — Hobbs/Curtis 算法规格（研究产出，公式有出处）
 - `docs/agent-loop.md` — 接入层：agent 笔序 + vision 阶段批评（Phase 1）
+- `docs/taste.md` — 品味观与手文件：品味不生成、被继承被选择；人是唯一神谕；产品四档（看/画/同画/传）
+- `docs/teaching-mvp.md` — Phase 1 第一刀：教学回放 MVP 的范围切割（教不会画的）
 - `docs/lessons.md` — dsh-studio 实战教训（本项目的需求输入）
 - `docs/roadmap.md` — 尖峰 → 接入 → 产品化
 - `src/core/` — 介质引擎（通道数泛化）；`src/color/` — 颜色系统（RGB/光谱）；`src/brush/` — 笔触；`src/paper/` — 纸纹；`src/io/` — PNG/GIF；`src/studio/` — 编排装配

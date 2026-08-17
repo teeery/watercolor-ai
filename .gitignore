@@ -16,3 +16,7 @@ probe/ows/gif-test-*.gif
 # 系统文件
 Thumbs.db
 .DS_Store
+
+# 论文原始 PDF(本地资产,文本提取件 .txt 已入库)
+research/*.pdf
+
