@@ -258,7 +258,8 @@ export class StrokePainter {
             eng.step(40);
           } else {
             const { cx, cy, rx, ry } = stroke.region;
-            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: 0.3, soft: stroke.hard ? 0.5 : (stroke.soft ?? 6) });
+            // hard(主体物)：软边 0.5 + jag 0.08 → 光滑整圆轮廓（消多边形感）
+            this.blob(cx + (this.rng() - 0.5) * rx * 0.2, cy + (this.rng() - 0.5) * ry * 0.2, rx, ry, { jag: stroke.hard ? 0.08 : 0.3, soft: stroke.hard ? 0.5 : (stroke.soft ?? 6) });
             eng.depositMask(this.mask, { water, amount: amount / layers, hard: stroke.hard ?? false });
             eng.step(40);
           }
