@@ -3,10 +3,10 @@
 export function compositePlanes(eng, colorSystem, {
   paperColor = [0.99, 0.975, 0.94],
   wetDarken = 0.07,
-  grainShade = 0.10,
+  grainShade = 0.085, // 色彩线：颗粒润化（vision：#1 锌白浓档颗粒感稍重）
   edgeDarken = 0.12, // M1：模拟侧边缘加深（stage 7/8 bugfix）已生效，渲染侧降权防"灰色铅笔线"（vision 终审意见）
   edgeBlur = 4,
-  granShade = 0.22,
+  granShade = 0.16,  // 色彩线：颗粒润化（同上）
 } = {}) {
   const { w, h, W, Dm, Pm, paper } = eng;
   const { H, G, F } = paper;
