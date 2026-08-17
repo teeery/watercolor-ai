@@ -1,0 +1,81 @@
+===== PAGE 1 =====
+ 
+ 
+Artist Paint Spectral Database Roy  S.  Berns    Rochester  Institute  of  Technology  54  Lomb  Memorial  Drive,  Color  Science  Hall  Program  of  Color  Science  Studio  for  Scientific  Imaging  and  Archiving  of  Cultural  Heritage  Rochester,  New  York,  14623-­5604  585-­475-­2230        (fax)  585-­475-­4444  berns@cis.rit.edu    
+Abstract  Colorimetric and spectral gamuts are useful for the design of imaging systems such as display and print, to evaluate encoding errors for digital photography, for spectral reconstruction, and for lighting design. An artist paint spectral database was developed that includes spectra, colorimetry, eigenvectors, and optical data to produce additional spectra if desired. Nineteen acrylic-dispersion paints were sampled and Kubelka-Munk theory with the Saunderson correction was used to characterize each paint’s optical properties. Each chromatic paint or hue-adjacent paints were mixed computationally with white and with black at a range of concentrations producing approximately uniform sampling in CIELAB. In total, there are 23 hues and one gray scale with 770 unique spectra. Introduction  Colorimetric and spectral gamuts are useful for the design of imaging systems such as display and print, to evaluate encoding errors for digital photography, for spectral reconstruction, and for lighting design. Common gamuts include the Munsell Book of Color [1], the Natural Colour System [2], the MacAdam limits [3], the Pointer gamut of surface colors [4], the Li, et al. spectral database [5], the SOCS database [6], and the recent IES color-rendering spectra [7]. In this research, an artist paint spectral database was developed that includes spectra, colorimetry, eigenvectors, and optical data to produce additional spectra if desired. Materials  and  Measurements  Nineteen Golden Artist Colors Heavy Body acrylic dispersion paints [8] were used to develop the database, listed in Table I. Acrylic paints were selected because of their quick drying times, ease of cleanup being water-based, and level of opacity. The specific paints were selected to sample the hue circle and when used directly from the tube, e.g., cadmium yellow, or when mixed with white, e.g., ultramarine blue, could achieve high chroma. The exception was cobalt blue; it was selected because of its unique spectral reflectance factor where at long wavelengths, it has high reflectance.  Each paint was applied to Leneta Form 3B Opacity Charts [9] using a 0.006” drawdown bar, the goal producing an opaque paint layer. For some paints, multiple drawdowns were applied, each at greater thickness, to achieve opacity. Each paint was mixed with white to produce a moderate to high chroma and also applied to the drawdown paper producing an opaque layer. 
+The weight of each paint forming the mixture was determined using an Acculab scale with a precision of 0.005 g.  A Macbeth MS7000 integrating sphere spectrophotometer was used to measure total hemispherical spectral reflectance factor (SPIN). Each sample was measured four times with replacement and its average recorded from 380 – 750 nm in 10 nm increments. Table  I.  Golden  Artist  Artist  Colors  Heavy  Body  acrylic-­dispersion  paints  used  to  generate  the  database.  Paint C.I.  #  Titanium  White   PW  6  Bone  Black   PBk  9  Bismuth  Vanadate  Yellow   PY  184  Hansa  Yellow  Opaque   PY  74  Diarylide  Yellow   PY  83  C.  P.  Cadmium  Orange   PO  20  Pyrrole  Orange   PO  73  C.  P.  Cadmium  Red  Light   PR  108  Pyrrole  Red   PR  254  Quinacridone  Red   PV  19  Quinacridone  Magenta   PR  122  Dioxazine  Purple     PV  23  Ultramarine  Blue   PB  29  Cobalt  Blue   PB  28  Cerulean  Blue,  Chromium   PB  36:1  Phthalo  Blue  (Red  Shade)   PB  15:1  Phthalo  Blue  (Green  Shade)  PB  15:4  Phthalo  Green  (Blue  Shade)  PG  7  Phthalo  Green  (Yellow  Shade)  PG  36  Optical  Model  The opaque form of Kubelka-Munk (KM) turbid media theory [10–13] was used to predict the spectral reflectance factor of any paint mixture. The model’s effectiveness was verified previously using Golden Artist Company Matte Fluid acrylic dispersion paints [14]. Each paint was characterized optically by calculating absorption and scattering spectra using the masstone-tint method [14]: the paint directly out of the tube (masstone) and mixed with white (tint) with known concentration.   KM theory requires internal spectral reflectance factor data, that is, spectral data inside the paint layer. This was achieved by compensating for the refractive index discontinuity at the paint and air interface using the modified Saunderson equations [15] with constants of K1 = 0.03 (collimated), K2 = 0.65 (diffuse) and Kinstrument = 1.0 (SPIN), the constants derived previously [16].  Mixtures were varnished (or made glossy) computationally by setting Kinstrument = 0 when transforming from internal to external reflectance factor. This approach was verified experimentally using Pyrrole Orange and Golden MSA glossy varnish. 
+===== PAGE 2 =====
+ 
+ 
+Mixtures  Each chromatic paint was mixed computationally with white (tints) and with black (tones) resulting in 39 spectra for each color. The spectra and colorimetric coordinates (1931 observer, D50) of Cadmium Orange are plotted in Figure 1 as an example. With an increase in the amount of white, the short wavelength absorption decreases. With an increase in the amount of black, the long wavelength absorption decreases. The specific concentrations were selected to reasonably sample CIELAB. 
+ 
+ 
+ Figure   1.  Computational   mixtures   of   Cadmium   Orange   with   Titanium   White  and   with   Bone   Black.   (The   hue   circle   is   shown   as   a   guide  to   relating   a*b*  position  with  hue;;  it  does  not  represent  an  outer  gamut  limit  to  CIELAB.)  
+Spectral  and  Colorimetric  Database  The set of paints did not completely sample CIELAB hue and additional spectra were produced by mixing Phthalo Green (Yellow Shade) and Bismuth Vanadate Yellow at three ratios, Phthalo Blue (Green Shade) and Phthalo Green (Blue Shade), and Quinacridone Magenta and Dioxazine Purple. In total there were 770 spectra. Their CIELAB coordinates are plotted in Figure 2. Note that most of the paints’ tints and tones shift in hue, 
+particularly the yellows, oranges, reds, and magentas. This is a result of the non-block-dye nature of these colorants where the transition from short to long wavelengths shifts with changes in white, clearly seen in Figure 2 for Cadmium Orange.  
+ 
+ Figure  2.  Complete  spectral  database  plotted  in  CIELAB.  
+Principal  Component  Analysis  Principal component analysis (mean subtracted) was performed on the spectra, the percent variance listed in Table II and the mean and first ten eigenvectors plotted in Figure 3. The small wiggle around 730 nm is a result of small uncertainty in the absorption and scattering properties of Bone Black. With each successive eigenvector, the number of oscillations increases, typical of PCA. There are many applications where three basis functions are useful as an approximation of the complete spectral dataset. A linear combination of the first three eigenvectors was sought that could reconstruct the mean, the result plotted in Figure 4. Five eigenvectors were necessary to reconstruct the mean with reasonable performance.  
+
+===== PAGE 3 =====
+ 
+ 
+Table  II.  Variance  and  cumulative  variance  of  the  first  ten  eigenvectors.  
+Eigenvector Variance  Cumulative  %  Variance  1   0.7392  73.9  2   0.1593  89.6  3   0.0769  97.5  4   0.0137  98.9  5   0.0056  99.5  6   0.002  99.7  7   0.001  99.8  8   0.0007  99.9  9   0.0006  99.9  10   0.0003  99.9   
+ 
+ Figure  3.  Mean  and  first  10  eigenvectors.  
+ Figure  4.  Mean   and   its   reconstruction   using  the   first  three  and   the  first   five  eigenvectors.  
+Encoding  Error  Example  The colorimetric coordinates of the database were transformed to sRGB, AdobeRGB(1998), and eciRGBv2. Any colors with linear RGB values less than zero or greater than unity will lead to encoding errors. These are plotted in Figure 5. As these are all display-based, subtractive primary colors, cyan, yellow, and magenta, are most commonly outside rendering gamuts [17]. sRGB demonstrates this for cyans and yellows. For all three encoding spaces, yellows and reds were beyond the rendering gamuts. Conclusions  A spectral and colorimetric database of artist paints has been derived using Golden Artist Colors Heavy Body acrylic dispersion paints. The spectral, colorimetric, absorption and scattering, and eigenvector data will be available for downloading in a spreadsheet.  !0.5%
+!0.4%
+!0.3%
+!0.2%
+!0.1%
+0%
+0.1%
+0.2%
+0.3%
+0.4%
+0.5%
+380%430%480%530%580%630%680%730%
+Reﬂectance(factor(
+Wavelength((nm)(
+Mean%Eigenvector%1%Eigenvector%2%Eigenvector%3%Eigenvector%4%Eigenvector%5%
+!0.5%
+!0.4%
+!0.3%
+!0.2%
+!0.1%
+0%
+0.1%
+0.2%
+0.3%
+0.4%
+0.5%
+380%430%480%530%580%630%680%730%
+Reﬂectance(factor(
+Wavelength((nm)(
+Eigenvector%6%Eigenvector%7%Eigenvector%8%Eigenvector%9%Eigenvector%10%
+0"
+0.05"
+0.1"
+0.15"
+0.2"
+0.25"
+0.3"
+0.35"
+0.4"
+0.45"
+0.5"
+380"430"480"530"580"630"680"730"
+Reﬂectance(factor(
+Wavelength((nm)(
+E1-E5"E1-E3"Mean"
+===== PAGE 4 =====
+ 
+ 
+ 
+ 
+ 
+ Figure  4.  Colors  outside  of  the  color-­rendering  gamut  of:  (top)  sRGB,  (middle  AdobeRGB(1998),  and  (bottom)  eciRGBV2..  
+References   [1] http://munsell.com/color-products/color-communications-products/munsell-books-and-sheets/ [2] http://www.ncscolour.com/en/natural-colour-system/ 
+[3] D. L. MacAdam, “The theory of the maximum visual efficiency of color materials”, J. Opt. Soc. Am, 25, 249-252 (1935). [4] M. R.Pointer, The gamut of roloC ,sruoloc ecafrus laer Res. Appl., 5(3), 145-155 (1980). [5] C. Li, M. R. Luo, M. Pointer, and P. Green, “Comparison of real colour gamuts using a new reflectance database,” Color Res. Appl. 39(5), 442–451 (2014). [6] International Organization for Standardization, “Graphic technology–standard object colour spectra database for colour reproduction evaluation (SOCS),” ISO Norm 16066 (2003). [7] A. David, P. T. Fini, K. W. Houser, Y. Ohno, M. P. Royer, K. A. G. Smet, M. Wei, and L. Whitehead, "Development of the IES Method for Evaluating the Color Rendition of Light Sources." Optics Express 23:15888–906 (2015). [8] http://www.goldenpaints.com/products/colors/heavy-body [9] http://opacity.leneta.com/item/opacity-charts/form-3b-opacity-chart/item-1004 [10] P. Kubelka and F. Munk, “Ein beitrag zur optik der farban- striche,” Z. Tech. Phys. (Leipzig) 11a, 593–601 (1931). [11] P. Kubelka, “New contributions to the optics of intensely light scattering materials. Part I,” J. Opt. Soc. Am. 38, 330–335 (1948). [12] P. Kubelka, “New contributions to the optics of intensely light scattering materials. Part II,” J. Opt. Soc. Am. 44, 448–457 (1954). [13] E. Allen, "Colorant Formulation and Shading, in “Optical Radiation Measurements”, F. Grum, F. and C. J. Bartleson," Academic Press, New York, 1980. [14] R. S. Berns and M. Mohammadi, "Evaluating single-and two-constant Kubelka-Munk turbid media theory for instrumental-based inpainting," Studies in Conservation 52, 299–314 (2007). [15] R. E. Best, Computer match prediction – pigments, in R. McDonald, Colour Physics for Industry Society of Dyers and Colourists, Bradford, 1987, pp. 209. [16]  Y. Okumura, "Developing a spectral and colorimetric database of artist paint materials," M.S. Thesis Rochester Institute of Technology (2005). [17] R. S. Berns and M. Derhak, “ETRGB: An Encoding Space for Artwork Imaging,”IS&T Archiving Conference 74-77 (2015).    

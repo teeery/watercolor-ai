@@ -1,0 +1,533 @@
+===== PAGE 1 =====
+Artist Material BRDF Database for Computer Graphics 
+Rendering 
+Justin C. Ashbaugh, Roy S. Berns, Benjamin A. Darling and Lawrence A. Taplin; Munsell Color Science Laboratory, Chester F. 
+Carlson Center for Imaging Science, Rochester Institute of Technology, Rochester, NY 
+                         
+ 
+Abstract 
+A research project is underway to create a physical library 
+of artist material samples and corresponding BRDF 
+measurements that characterize their optical properties. This 
+collection will provide necessary data for the development of a 
+gonio-imaging system for use in museums to more accurately 
+document their collections. A sample set has been produced 
+consisting of 26 panels containing over 600 unique samples. 
+Selected materials are representative of those commonly used by 
+artists both past and present. These take into account the 
+variability in visual appearance resulting from the materials and 
+application techniques used. Five attributes of variability were 
+identified including medium, color, substrate, application 
+technique and overcoat. Combinations of these attributes were 
+selected based on those commonly observed in museum 
+collections and suggested by surveying experts in the field. 
+For each sample material, RGB and spectral image data 
+will be collected and used to measure an average bi-directional 
+reflectance distribution function (BRDF) and a pixel-wise BRDF 
+will be fit using parameterized models. These results will be 
+made available online as a searchable database. Additionally, it 
+will include specifications for each sample, and other 
+information useful for computer graphics rendering such as the 
+raw image data, normal map and height maps.  
+Introduction 
+Digital images are used by many museums to document 
+their collections for archival purposes.  These images, typically 
+captured from a single, straight-ahead viewpoint, are inadequate 
+in conveying the often-complex surface structure of the artwork 
+resulting in limited visual accuracy when compared to the 
+original. When viewing artwork, attributes such as gloss and 
+surface texture require examination from multiple angles to fully 
+visualize and these qualities are not accurately represented when 
+the digital record is limited to a single image taken from only 
+one angle.   
+A research effort is underway to develop a gonio-imaging 
+system that is capable of capturing bi-directional reflectance 
+distribution function (BRDF) data, which can be used to 
+overcome some limitations associated with traditional imaging 
+methods.  A preliminary step in the development of the gonio-
+imaging system was the creation of a set of samples that would 
+provide necessary data of artist materials. These samples do not 
+aim to be a comprehensive set of all artist materials, but rather a 
+representative set of the most common materials used by artists 
+both past and present.  
+For each sample, the set of images obtained using the 
+gonio-imaging system are used to estimate BRDF data for the 
+various materials.  The BRDF data provide a basis for model 
+development that can be used to simplify the gonio-imaging 
+workflow and make it practical for museum use.  
+The BRDF measurements obtained using the gonio-
+imaging system will also be used in the development of an 
+online database. BRDF databases such as MERL [1] and 
+CUReT [2] contain BRDF data for many common materials, but 
+there is a lack of BRDF data available for artist materials.  The 
+completed artist material database will provide BRDF data for 
+artist materials along with the raw images captured with the 
+gonio-imaging system.  Descriptions and images of how the 
+samples were made will also be included as a reference for 
+others attempting to recreate the samples for use in their 
+research. 
+Artist Material Samples 
+Five Attributes of Variability 
+A primary goal when creating the artist materials database 
+was to achieve a range of visual appearances by altering various 
+attributes of the samples.  Five attributes were identified that 
+could be independently changed to alter the appearance of the 
+samples and include: medium, substrate, color, application 
+technique and overcoat.  It was important in selecting the 
+materials and the combinations of the five attributes that the 
+resultant samples were representative of what is typically found 
+in museums. 
+Medium, the first dimension, has the most significant 
+impact on the appearance.  While some mediums, such as oil 
+and acrylic paints, can be very similar in appearance, others like 
+oil and watercolor paint are very different visually.   
+The substrate on which the medium is applied also has a 
+profound effect on the visual appearance. It can be seen in 
+Figure 1 that when acrylic paint is brushed onto three different 
+substrates: Masonite, fine canvas and coarse canvas, the 
+appearance is quite different.  While the brushstrokes are very 
+defined on the Masonite panel, the texture of the coarse canvas 
+shows little of the brushstrokes. 
+Nearly all the mediums, with the exception of charcoal, 
+graphite and Conté crayon, are available in a range of colors.  
+The color of the medium impacts the appearance in many ways 
+including the degree of the spectral highlights seen in the 
+artwork.  For example, a painting done primarily with black oil 
+paint will have much more distinct spectral highlights when 
+compared to an identical work done with a neutral gray shade.   
+62
+©2009 Society for Imaging Science and Technology
+===== PAGE 2 =====
+The technique refers to the various tools used to apply the 
+medium, variations in application method and also alterations 
+made to the medium itself.  Oil paints applied with a brush 
+compared to application with a palette knife produce a very 
+different appearance.  Also, using the palette knife, the paint can 
+be applied in a smooth, even coat or with significant surface 
+texture.  An example of altering the medium would be the water 
+to paint ratio when painting with watercolors. 
+Lastly, the application of an overcoat refers to varnishes, 
+typically used on oil and acrylic paintings as both an aesthetic 
+choice by the artist and to protect the painting from 
+environmental factors, and fixatives, used as a protective coating 
+on works done with pastels and charcoal.  Varnishes and 
+fixatives come in a range of appearances from matte to glossy, 
+dramatically changing the appearance of the artwork.   
+Material Selection 
+In examining the types of materials used by artists both past 
+and present, the vast amount of variability quickly becomes 
+evident.  It was important to accurately sample the range of 
+materials while at the same time not becoming overwhelmed 
+with all the possibilities.  An initial investigation was conducted 
+by exploring the online catalogs of some major museums 
+including the National Gallery of Art, Washington, D.C. and the 
+Metropolitan Museum of Art, New York.  Using the 
+descriptions from the museum’s websites, a sense was gained of 
+what mediums were most common and also the typical 
+substrates used with each of the mediums.    
+To further aid in the determination of material selection, a 
+survey was distributed to several museum conservators and 
+individuals in the artist material industry.  The survey, compiled 
+from the information gathered from the museum websites, listed 
+combinations of medium/substrate/overcoat and asked 
+participants to check either “common” or “uncommon” for each 
+choice. The results of the survey were helpful in determining not 
+only the mediums that should be focused on, but more 
+importantly, the combinations of medium/substrate/overcoat. 
+ 
+ 
+ The final selection of materials, for which nearly 600 
+unique samples were made by hand (see Figure 3) under the 
+direction of an art materials expert, are summarized in Table I.  
+Each sample measures approximately 39 mm square and is 
+arranged in a five-by-five pattern on a 25 cm square panel.  A 
+finished panel consisting of acrylic paint on coarse canvas with 
+different types of varnish applied to each row is shown in Figure 
+2.  
+  In creating the panels, two different methods were used 
+depending on the medium.  When working with canvas and 
+Masonite panels on which oil, acrylic and egg tempera were 
+painted, the panel was sectioned off with tape to create the 25 
+individual squares.  Mediums applied to paper were cut into 
+squares and adhered to the sample panel.  The initial set of 
+samples is comprised of 26 panels, some of which are not filled 
+to capacity.   
+Figure 1.  Acrylic paint brushed onto three different substrates: Masonite, fine canvas, and coarse canvas. 
+Figure 2.  Acrylic paint on coarse canvas with a different type of 
+varnish in each row.  The paint was applied with a palette knife to 
+create impasto. 
+17th Color Imaging Conference Final Program and Proceedings
+63
+===== PAGE 3 =====
+Medium 
+A total of twelve mediums are represented in the database. 
+The selected mediums cover a range of history, from egg 
+tempera, which has been used for hundreds of years as a 
+painting medium, to materials that are more recent additions to 
+the artist’s cache such as marker.  The mediums can be broken 
+down in two subsets: those mediums that are used to paint with 
+and those that used to draw with.   
+The painting mediums include: egg tempera, oils, acrylics, 
+watercolor, gouache and inks.  Egg tempera, which predates the 
+other paint mediums, uses egg yolk to bind pigments and is 
+typically painted on a wood panel. Most early murals and 
+paintings prior to the 16th century were done with egg tempera 
+[3].  
+ Oil paint, the dominant painting medium from 
+approximately the 16th century onward [3], is characterized by 
+its luminous quality, thick consistency and slow drying time.  
+Acrylics have similar working properties to oils, but dry in a 
+matter of hours as opposed to weeks with oils. 
+Watercolors are typically diluted with water, resulting in a 
+transparent quality, and can be applied in thin layers or washes 
+when covering large areas or less diluted when adding detail to 
+the painting. Watercolor paintings are distinctive, as the colors 
+are very understated with the color of the substrate contributing 
+quite a bit to the appearance.   
+Gouache is best described as an opaque version of 
+watercolor paint and can be mixed with large amounts of water 
+for use as a wash or applied thickly for a more saturated and 
+opaque look.   
+Lastly, inks, when used as a painting medium, are applied 
+in thin layers comparable to watercolors, but have a more vivid, 
+saturated appearance.  It should be noted that inks are also often 
+TABLE  I: The materials and techniques used to create the 600 samples in the artist material database 
+64
+©2009 Society for Imaging Science and Technology
+===== PAGE 4 =====
+used to draw with, as in a pen and ink drawing, but that 
+application of the medium was not included in the initial set of 
+samples. 
+The drawing mediums include pastel, marker, colored 
+pencil, Conté crayon, charcoal and graphite.  Pastels consist of 
+pure powdered pigment held in a binder and usually come in 
+stick form.  Pastels range from soft to hard.  Soft pastels have a 
+higher proportion of pigment, therefore they produce brighter 
+colors and can be easily blended.   
+Markers are a newer addition to the artist’s palette, but 
+more modern works of art are created with this medium.  
+Markers produce opaque, saturated color that usually masks the 
+substrate onto which it is applied.  Colored pencil, on the other 
+hand, produces colors that are subtle and therefore the substrate 
+on which they are applied is usually visible and can significantly 
+affect the appearance.  
+Conté crayons are usually black in color and have a waxy 
+feel typical of a crayon.  They can be applied thickly to the 
+substrate so that it is completely concealed.  Charcoal is often 
+used for making rough sketches in painting, but also is used to 
+produce drawings.  Charcoal is easy to blend and is also very 
+dusty so that fixative is often used to prevent smudging.   
+Graphite has a flaky and greasy consistency and is used for 
+line drawings and sketches.  It can range in hardness from soft to 
+hard and can vary from light gray to black.  A 4B graphite pencil 
+was used to create the samples and is of medium hardness.  
+Substrate 
+There are a large variety of materials an artist can use to 
+paint or draw on.  When considering paints, particularly oil and 
+acrylic, canvas is a common choice.  Canvas comes in a range of 
+textures and two were used in creating the samples: a tightly 
+woven ‘fine’ canvas typically used for portrait painting, and a 
+‘coarse’ textured canvas that might be used to paint a landscape. 
+Masonite, used as a painting surface for oils, acrylics and egg 
+tempera, was used as a substrate for its characteristic smooth 
+texture.  
+ The remaining nine mediums were applied to paper of 
+varying texture.  The remaining paint mediums including 
+watercolor, gouache and colored ink were applied to watercolor 
+paper of varying texture.  Cold-pressed watercolor paper is 
+rough textured while hot pressed is very smooth. 
+The remaining mediums: pastel, marker, colored pencil, 
+Conté crayon, charcoal, and graphite were used on a sketch 
+paper that has a slightly rough texture.  These mediums were 
+also applied to cold-pressed watercolor paper that has 
+considerably more surface texture than the sketch paper. 
+Color 
+It was important to sample a range of colors for each 
+medium while at the same time keeping the selection to a 
+reasonable number.  Colors were first selected from oil and 
+acrylic pigments and included: Venetian red, chromium green 
+oxide, neutral gray, bone black and titanium white.  These 
+pigments were chosen based on their dominant scattering ability 
+so they would be opaque when applied to the substrate.  
+For the remaining mediums, the colors were generally not 
+specified by the same pigment name given for the oils and 
+acrylics.  Colors for these mediums were selected by choosing 
+the closest visual match to the oil and acrylic colorants.  
+Technique 
+The technique used to apply the medium was varied in 
+different ways to achieve various appearances.  In some cases, 
+such as oil and acrylic paint, assorted tools were used to apply 
+the paint to the substrate.  When applied with a brush, the 
+strokes maintained a distinctive appearance compared to when 
+the paint was smoothed on with a palette knife.  Also, using a 
+given tool, such as the palette knife, different appearances were 
+achieved.  The paint could be smoothed on using the palette 
+knife or used to create impasto where the surface has a 
+distinctively rough texture.  
+Different ratios of water to paint were used when working 
+with the watercolor and gouache.  A mixture with a lot of water 
+resulted in a “wash” that is quite transparent when applied to the 
+paper and would typically be used as the beginning layer of a 
+watercolor or gouache painting.   
+When working with drawing mediums the direction of 
+application was varied to achieve different levels of paper 
+coverage.  
+Overcoat 
+An overcoat layer, which includes varnishes and fixatives, 
+is common with particular mediums for both aesthetic and 
+protective reasons.  The artist, to give a certain visual quality to 
+their piece, often varnishes oil and acrylic paintings.  A varnish 
+layer also acts as a protective barrier against environmental 
+pollutants such as dirt and smoke.  Several different varnishes 
+were used on the acrylic and oil samples. Gamvar, a low 
+molecular weight synthetic resin, was used and applied using 
+two different methods.  Also, an acrylic solution varnish was 
+used in both a matte and gloss finish.  The charcoal and pastel 
+samples were treated with a fixative spray to prevent smudging.  
+Both a matte and gloss version of the fixative were used.
+ 
+Figure 3.  Acrylic paint being applied with a palette knife to create 
+surface texture. 
+ 
+ 
+17th Color Imaging Conference Final Program and Proceedings
+65
+===== PAGE 5 =====
+Artist Material Database 
+The BRDF measurements derived from the artist materials 
+will be made available online as a searchable database, available 
+at http://www.art-si.org. Once completed, the database will have 
+several components in addition to the BRDF measurements of 
+the samples.   
+The raw image data captured from the artist material 
+samples will be provided so that other researchers can use these 
+images to fit different BRDF models if desired.  Also included 
+will be normal maps and height maps of each of the samples that 
+will be generated using image-based measurement techniques 
+and direct laser scanning [4-6].  
+A search feature will allow individuals looking for data on 
+a particular medium or substrate to filter the data and retrieve 
+information on that particular item of interest. 
+Lastly, a comprehensive list of the materials used to make 
+the samples, along with images and videos of the samples being 
+made, will be provided so that researchers can duplicate the 
+samples if needed. 
+Gonio-Imaging Data Collection 
+The gonio-imaging system, shown in Figure 4, is used to 
+capture the image data necessary in determining BRDF for the 
+artist materials.  In developing such a system, it was of primary 
+importance to keep the equipment for image capture, along with 
+the software needed for post-processing of the images, practical 
+enough so it is possible to implement the system in a low cost 
+research setting.  To accomplish this objective, it is necessary to 
+use a combination of hardware including a sample positioner 
+that allows the target to be positioned at any angle, relative to 
+the camera, and BRDF-based models used to simplify the 
+image-processing workflow. 
+Hardware configuration 
+The gonio-imaging system is able to capture images from 
+multiple angles through the use of a sample positioner that 
+allows movement of the samples about three axes relative to the 
+center of the target.  Three detectors, shown in Figure 5, are 
+used to capture image data and include a Canon 5D camera, the 
+MCSL-Sinar multispectral camera [7] and a Konica Minolta CS-
+2000 spectroradiometer.  
+The Canon 5D, fitted with a 135 mm lens and set to an 
+aperture of F22, can be used to produce HDR images by 
+capturing multiple exposures of the target.  The small aperture 
+size allows for the entire sample to remain in focus when the 
+panel is tilted at steep angles relative to the camera.  The 
+spectroradiometer is coupled with a pan-tilt mirror so that 
+measurements can be made at various locations on the target 
+without having to move the detector. 
+The detectors are positioned approximately 8 feet from the 
+target. For the preliminary tests of the system, images were 
+illuminated with an Oriel tungsten source with a constant current 
+power supply, positioned 6 feet from the target and with an 
+aperture size of 10mm x 7mm.  The small aperture size aids in 
+simplifying the BRDF modeling of the samples.  After using the 
+small-area light source to characterize the artist database 
+materials, a technique for using large-area light sources will be 
+developed that is capable of imaging large-canvas artwork in a 
+museum setting. 
+BRDF model fitting 
+The set of images captured using the gonio-imaging system 
+will be used in performing image-based BRDF estimation with 
+parameterized models and then used in a computer graphics 
+rendering workflow to accurately visualize what the artwork 
+would look like under any lighting environment and from 
+different viewing angles [8].  
+It was important when designing the imaging targets that 
+they be as uniform as possible. Using typical artwork to supply 
+the necessary data for model development would have had 
+several inherit limitations. Because measurement area changes 
+with viewing angle, spatial non-uniformity would introduce 
+measurement uncertainty. The samples created for the artist 
+Figure 4.  The gonio-imaging room.  In the foreground is the computer 
+used to control the entire imaging process along with the detectors.  
+The lights are positionable from a grid on the ceiling.  The three-axis 
+sample positioner is visible in the center of the image. 
+Figure 5.  The various detectors used in the gonio-imaging set-up which 
+are mounted on a motorized translation axis allowing them to be 
+repositioned to capture image data with either of the two cameras or the 
+spectroradiometer. 
+ 
+  
+66
+©2009 Society for Imaging Science and Technology
+===== PAGE 6 =====
+database overcome some of these limitations by maintaining 
+consistent material and surface properties over each sample’s 
+area. 
+Early results were obtained using a sample consisting of 
+green pastel on sketch paper with four coats of gloss fixative.   
+The results of two images captured from both diffuse and near-
+specular angles are shown in Figure 6.  The green color of the 
+pastel is evident in the image captured at a diffuse angle while 
+the image taken from the near-specular view shows little of the 
+chromatic content of the sample. The lack of color in the image 
+captured from the near-specular view demonstrates the spectral 
+non-selectivity of the material’s specular reflection. 
+ 
+ 
+The Konica Minolta CS-2000 spectroradiometer was used 
+to measure the spectral BRDF of the green pastel sample, the 
+results of which are shown in Figure 7. Spectroradiometer 
+measurements were made for a range of BRDF angles by 
+rotating the sample holder around two of its axes while the light 
+and detector were held at fixed positions, 13.8o apart. 
+At the specular angle (0o), the sample exhibits non-
+selectivity across the spectrum, accounting for the achromatic 
+appearance of the near-specular view shown in Figure 6.  As the 
+view moves away from specular angles, the BRDF 
+measurements reveal the spectral selectivity (green) of the 
+diffuse reflectance.  As seen in Figure 7, the peak centered 
+around the middle portion of the spectrum becomes more 
+pronounced as the specular offset increases. 
+The parameters for a Cook-Torrance BRDF model [9] were 
+fit to the spectroradiometer data at 550nm using non-linear 
+optimization. Data and fitted results are shown in Figure 8 over 
+a range of sample holder angles for both in-plane and out-of-
+plane (+/- 2o) measurements.  For the fixed lighting and detector 
+positions, the specular peak occurs when the primary axis of the 
+sample holder is rotated to 6.9o.  The model curve fits have 
+similar peak locations and specular lobe widths as the measured 
+data, but have some deviation in the absolute peak height.  
+Conclusions  
+A physical library of artist materials was created containing 
+nearly 600 unique samples that represent the common materials 
+and application techniques used by artists both past and present. 
+The BRDF measurements obtained from the samples will be 
+used to develop models that, when incorporated into the imaging 
+workflow, makes possible a practical gonio-imaging system for 
+use in a museum setting.  The gonio-imaging system provides a 
+means to more accurately document artwork by capturing 
+images from multiple angles that can be used to simulate 
+different lighting and viewing environments. 
+Figure 6.  Two digital images from the Canon 5D of green pastel on paper 
+with four coats of gloss fixative.  Diffuse view (left) taken with light source 
+and detector on the same side of surface normal (θi,φi,θr,φr)=(13.4
+o
+, -12.0
+o
+, 
+26.9
+o
+, -2.4
+o
+).  Near specular view (right) is shown here at a reduced 
+exposure (θi,φi,θr,φr)=(6.1
+o
+, -152.6
+o
+, 8.5
+o
+, -8.1
+o
+). 
+ 
+Figure 7.  Spectral BRDF of glossy green pastel sample measured 
+with Konica-Minolta CS-2000 with in-plane illumination. The detector 
+and illumination were fixed with an angle of 13.8
+o
+ between them while 
+the sample was rotated through multiple angles. 
+ 
+ 
+Figure 8.  Cook-Torrance BRDF model fits for spectroradiometer data 
+at 550nm for both an in-plane and two out-of-plane measurements. 
+ 
+17th Color Imaging Conference Final Program and Proceedings
+67
+===== PAGE 7 =====
+The artist material BRDF data will also be made available 
+online as a searchable database for use in applications such as 
+computer rendering of real-world surfaces.  The database will 
+have several features in addition to the BRDF data.  Raw image 
+data will be provided so that other researchers can fit new BRDF 
+models if desired.  Also, descriptions of the materials and 
+application techniques used to make the samples will be 
+provided to aid others in recreating the samples.   
+ An early test of the gonio-imaging set-up was conducted 
+and preliminary results were obtained for a single glossy green 
+pastel sample.  A spectroradiometer was used to measure 
+spectral BRDF data for the sample and Cook-Torrance BRDF 
+model parameters were fit for the measurements at 550nm.  
+Once additional samples are measured, model performance can 
+be more accurately evaluated and other BRDF models tested. 
+The materials and techniques that comprise the initial set of 
+samples are by no means an exhaustive collection of all the 
+materials and application techniques seen in museum 
+collections.  As results are obtained for the initial set of samples, 
+it may prove valuable to add supplementary samples to the 
+database.  Additional samples can be added to further investigate 
+a specific medium or substrate, or to introduce new materials not 
+previously represented in the database.  
+Acknowledgements 
+This research was made possible through a generous 
+contribution from the Andrew W. Mellon Foundation.  The 
+authors would also like to thank Mark Gottsegen for his 
+continual assistance and expert advice in all matters related to 
+artist materials.   
+ 
+ 
+References 
+[1] Wojciech Matusik, Hanspeter Pfister, Matt Brand, Leonard 
+McMillan, “A Data-Driven Reflectance Model,” ACM 
+Transactions on Graphics (TOG), 22,3, (2003). 
+[2] Kristin J. Dana, Bram van Ginneken, Shree K. Nayar, Jan J. 
+Koenderink, “Reflectance and Texture of Real-World Surfaces,” 
+ACM Transactions on Graphics (TOG), 18,1, (1999). 
+[3] Ralph Mayer, The Artist’s Handbook of Materials and Techniques 
+(Viking, New York, NY, 1970) pg. 20-23. 
+[4] Reinhard Klette, Ryszard Kozera, Karsten Schluns.: Shape from 
+Shading and Photometric Stereo Methods. Communication and 
+Information Technology Research Technical Report, 20, (1998). 
+[5] Srinivasa G. Narasimhan, Sanjeev J. Koppal, and Shuntaro      
+         Yamazaki: Temporal Dithering of Illumination for Fast Active    
+         Vision. Proc. European Conference on Computer Vision, 830-844, 
+(2008). 
+[6] J. Taylor, J.A. Beraldin, G. Godin, L. Cournoyer, R. Baribeau, F. 
+Blais, M. Rioux, and J. Domey, “NRC3D Technology for Museum 
+and Heritage Applications,” The Journal of Visualization and 
+Computer Animation, 14:(3), 2003. 
+[7] R.S. Berns and L.A. Taplin, Practical Spectral imaging Using a 
+Color-Filter Array Digital Camera, MCSL Technical Report, July 
+2006. (http://www.art-si.org) 
+[8] Y. Chen, Model Evaluation and Measurement Optimization for the 
+Reproduction of Artist Paint Surfaces through Computer Graphics 
+Renderings, M.S. Thesis, R.I.T., Rochester, NY, 2008. 
+[9] Robert L. Cook and Kenneth E. Torrance. “A Reflectance Model 
+for Computer Graphics,” Computer Graphics. 14(3), 1981. 
+ 
+Author Biography 
+Justin Ashbaugh received his B.A. in Anthropology from 
+the University of Colorado at Boulder in 2003.  Currently 
+completing a M.S. degree in Color Science from the Rochester 
+Institute of Technology, his research focus is on creating an 
+artist material database for material specification. 
+  
+ 
+ 
+68
+©2009 Society for Imaging Science and Technology

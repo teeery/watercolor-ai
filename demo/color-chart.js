@@ -2,6 +2,7 @@
 // 输出：color_chart_compare.png（3840×960）+ color_chart[_spectral].png（单系统版）
 import { createStudio, makeColorSystem } from "../src/studio/studio.js";
 import { StrokePainter, hexToRgb01 } from "../src/brush/strokes.js";
+import { saundersonToInternal } from "../src/color/system.js";
 import { writePNG } from "../src/io/png.js";
 import { mkdirSync } from "node:fs";
 import { PIGMENTS } from "../src/color/pigments.js";
@@ -50,7 +51,16 @@ function paintChart(colorSystem) {
     const cyTop = row * CH + CH * 0.28;
     const cyDil = row * CH + CH * 0.58;
     const halfW = CW * 0.30;
-    const pig = { name: p.name, color: p.hex, granulation: p.granulation, staining: p.staining, amount: 2.0 };
+    // 锌白覆盖弱（咖啡环把中心流薄）→ 浓档加量保"奶膜体量"（vision：再叠一层浓度）
+    const strongAmt = p.name === "锌白" ? 4.2 : 2.0;
+    const pig = { name: p.name, color: p.hex, granulation: p.granulation, staining: p.staining, amount: strongAmt };
+    // 稀释档按"同等光学稀释度"取量：amt = x_target/(b·κs0)，x_target=0.35；
+    // b 从 hex 线性反射率经 Saunderson 逆变换反推——深色 b 大 → 取量极少 → 真正稀释
+    const lin = hexToRgb01(p.hex).map((c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    const rint = saundersonToInternal(lin.reduce((a, b) => a + b, 0) / 3);
+    const K0 = (1 - rint) * (1 - rint) / (2 * rint);
+    const bCoef = Math.sqrt((1 + K0) * (1 + K0) - 1);
+    const diluteAmt = Math.min(0.55, Math.max(0.015, 0.35 / (bCoef * (p.strength ?? 1) * (p.scatter ?? 1))));
     apply({
       type: "wet-wash",
       path: [[cx - halfW, cyTop - 3], [cx, cyTop + 1], [cx + halfW, cyTop - 2]],
@@ -61,7 +71,7 @@ function paintChart(colorSystem) {
       type: "glaze",
       path: [[cx - halfW, cyDil - 2], [cx, cyDil + 2], [cx + halfW, cyDil - 1]],
       radius: CH * 0.14, radiusEnd: CH * 0.10,
-      pigment: { ...pig, amount: 0.7 }, water: 0.6,
+      pigment: { ...pig, amount: diluteAmt }, water: 0.6,
     }, 110);
     if (colorSystem.channels === 3) label(i + 1, cx, row * CH + CH * 0.82);
   }
