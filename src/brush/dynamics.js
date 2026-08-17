@@ -82,10 +82,12 @@ export class BrushState {
     // 路径:path(画布坐标 ×0.5)或 region → 蛇形;Chaikin ×2
     let rawPath = stroke.path;
     if (!rawPath && stroke.region) rawPath = serpentine(stroke.region, this.widthGrid);
+    // Chaikin 圆角:湿铺 ×1(轻圆角);干皴 0(保留真实折角,转角刮痕需要硬角)
+    const smoothIter = stroke.type === "dry-brush" ? 0 : 1;
     if (!rawPath || rawPath.length < 2) {
-      this.pts = stroke.path ? chaikin(stroke.path) : [[engine.w * 0.5, engine.h * 0.5]];
+      this.pts = stroke.path ? chaikin(stroke.path, smoothIter) : [[engine.w * 0.5, engine.h * 0.5]];
     } else {
-      this.pts = chaikin(rawPath.map(([x, y]) => [x * GRID_SCALE, y * GRID_SCALE]));
+      this.pts = chaikin(rawPath.map(([x, y]) => [x * GRID_SCALE, y * GRID_SCALE]), smoothIter);
     }
     this.segLens = [];
     this.totalLen = 0;
@@ -175,8 +177,8 @@ export class BrushState {
         const F = eng.paper.F;
         const w = eng.w, h = eng.h;
         const g = Math.min(1, (gbAvg - 0.55) / 0.45);
-        // 阈值随干度上升:gb=0.55 不裂 → gb=1 时约 80% 断掉、20% 留成丝(越干越疏,单调,保留读得见的断带)
-        const thr = 0.8 * g;
+        // 阈值随干度上升:gb=0.55 不裂 → gb=1 时约 65% 断掉、35% 留成丝(越干越疏,断带仍可读)
+        const thr = 0.65 * g;
         const dlen = Math.hypot(b.dirX, b.dirY) || 1;
         const ux = b.dirX / dlen, uy = b.dirY / dlen;
         const sx = Math.round(ux), sy = Math.round(uy); // 拉伸采样方向(±1 格)

@@ -19,7 +19,7 @@ export class Bristles {
     this.spring = brush.spring ?? 0.7;
     this.kStiff = 0.35;
     this.tau = 0.4;          // splay 迟滞时间常数 s
-    this.kCurl = 20;         // 转向离心系数:毛甩到转角外侧的幅度
+    this.kCurl = 26;         // 转向离心系数:毛甩到转角外侧的幅度
     // 横向偏移均匀分布(确定性;毛的"出身")
     this.b = new Float32Array(this.N);
     for (let i = 0; i < this.N; i++) this.b[i] = (i + 0.5) / this.N * 2 - 1;
@@ -42,6 +42,7 @@ export class Bristles {
     }
     // 首次使用前 tips 未初始化 → init 标记
     this._init = false;
+    this._curl = 0; // 曲率动量(转角甩毛的平滑扫弧)
   }
 
   /** 重置状态(同一笔内继续;新笔时用) */
@@ -57,6 +58,7 @@ export class Bristles {
     }
     this._histHead = 0;
     this.splay = 0;
+    this._curl = 0;
   }
 
   /**
@@ -84,7 +86,9 @@ export class Bristles {
 
     const perpX = -dirY, perpY = dirX;
     const cross = prevDirX * dirY - prevDirY * dirX;  // z 分量:转向方向与幅度(直行 = 0)
-    const fling = -cross * this.kCurl * this.beta * v;
+    // 曲率动量:cross 累积并逐戳衰减 → 外侧毛在转角前后 3-4 戳平滑甩出(扫弧,非单戳三角补丁)
+    this._curl = this._curl * 0.55 + cross * 0.45;
+    const fling = -this._curl * this.kCurl * this.beta * v;
     const fx = perpX * fling, fy = perpY * fling;
     for (let i = 0; i < this.N; i++) {
       const b = this.b[i] * width;

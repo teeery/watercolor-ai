@@ -112,10 +112,10 @@ function blit(studio, col, row, label) {
 {
   const st = makeStudio();
   st.apply({
-    type: "dry-brush", brush: { name: "猪鬃平头", beta: 0.6 },
+    type: "dry-brush", brush: { name: "貂毛圆头", beta: 0.6 }, // 圆头:中轴毛痕为主,转角甩弧可读
     load: { water: 0.2, pigment: { color: "#2f4a3a", amount: 1.2 } },
     motion: { verb: "甩", speed: [0.9] },
-    path: [[150, 560], [700, 540], [760, 300], [1150, 320]],
+    path: [[150, 600], [700, 580], [700, 240], [1150, 260]], // 90° 硬转角
   });
   st.engine.step(100);
   blit(st, 1, 1, "⑤ 转角刮痕");
