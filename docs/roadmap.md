@@ -10,6 +10,7 @@
 
 ## Phase 1 — 接入 LLM（约 1 周）
 
+- **第一刀（已定）**：教学回放 MVP——教不会画的；范围切割与验收见 `docs/teaching-mvp.md`。
 - stroke JSON 协议定稿 + 颜料 / 纸预设库。
 - dsh-studio 循环骨架移植（阶段制、预算、keep-best、诚实守则）。
 - vision 阶段批评接入；限流降级路径。
