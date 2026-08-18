@@ -3,9 +3,10 @@ node_modules/
 .venv-ows/
 *.log
 
-# 渲染产物（可重新生成：node demo/*.js）;baseline-m0 为入库基线,例外保留
+# 渲染产物（可重新生成：node demo/*.js）;baseline-m0 与产物索引 README 例外入库
 out/*
 !out/baseline-m0/
+!out/README.md
 
 # 探测实验的中间产物（OWS 渲染图/官方 demo，源码与评估文档保留）
 research/probes/ows/*_out*/
