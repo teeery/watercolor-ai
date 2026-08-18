@@ -1,0 +1,957 @@
+
+===== PAGE 1 =====
+Intelli-Paint ：迈向开发类⼈绘画剂
+贾斯基拉特 · ⾟格
+Adobe 研究，澳⼤利亚国⽴⼤学
+{jaskirat.singh ，
+liang.zheng}@anu.edu.au ，  {casmith ，
+echevarr}@adobe.com
+卡梅伦 · 史密斯
+何塞 · 埃切⽡⾥亚
+梁正
+Adobe 研究，澳⼤利亚国⽴⼤学
+{jaskirat.singh ，
+liang.zheng}@anu.edu.au ，  {casmith ，
+echevarr}@adobe.com
+摘要
+制作设计精良的艺术作品通常耗时较⻓，且需要⼈类画家具备⾼度的熟练度。为了促进
+⼈类绘画的过程，  ⼤量研究致⼒于教机器 “ 像⼈类⼀样绘画 ” ，然后将训练有素的代理作
+为⼈类⽤⼾的绘画辅助⼯具。然⽽，当前在这⽅⾯的研究通常依赖于基于⽹格的渐进式
+分割策略，即智能体将整体图像逐步细分为细⽹格，然后并⾏绘制每个⽹格。这不可避
+免地导致了⼈⼯绘画序列，这些画⾯对⼈类⽤⼾来说不易理解。  为此，我们提出了⼀
+种新颖的绘画⽅法，学习在展现更接近⼈类的绘画⻛格的同时⽣成输出画布。拟议的绘
+画流程 Intelli-Paint 包括： 1 ）渐进式叠加策略，允许代理先绘制⾃然背景场景表⽰，
+然后逐步添加每个前景对象。 2 ）我们还引⼊了⼀种新的顺序笔触引导策略，帮助绘画
+者以语义感知的⽅式在不同图像区域间转移注意⼒。 3 ）最后，我们提出⼀种笔触正则
+化策略，允许∼在不明显产⽣画布质量的差异的情况下，总刷笔数量减少了 60% ⾄
+80% 。通过定量和定性结果，我们表明所得的代理不仅在⽣成画布时效率更⾼，还展现
+出更⾃然的绘画⻛格，更有助于⼈类⽤⼾通过数字艺术表达思想。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 1/31
+===== PAGE 2 =====
+图 1：发展出类⼈画⻛。（左）绘画序列可视化表明，我们的⽅法与⼈类绘画⻛格相⽐以往的技
+术更为相似。（正确）这种相似性通过 1 ）渐进的分层策略实现，使画布呈现更接近⼈类的演变 ;2 ）
+顺序注意⼒机制，聚焦于从粗到细的不同图像区域 ;3 ）采⽤笔触正则化⽅法，使我们的⽅法能够
+在显著减少笔触数的情况下获得详细效果（∼与 Paint Transformer 相⽐， 1/20刘 2021⻅上⽂）。
+1 简介
+绘画是⼈类表达思想和情感的关键媒介。然⽽，表达这些思想的能⼒往往受限于⼈类画
+家的技艺。此外，创作⾼质量艺术往往相当具有挑战性，需要画家投⼊⼤量时间。
+解决这⼀问题的⽅法之⼀是开发⾃主绘画代理，帮助⼈类画家更快、更简洁地表达他们
+的想法。为此，研究兴趣⽇益增⻓huang2019 学习; Mellor 2019 ⽆监督;
+ganin2018 合成; 郑 2018strokenet ⽹; Kotovenko2021 重新思考; 谢 2013 艺术家;
+HA2017 神经; zou2021 ⻛格化; 刘 2021; Singh2021 合并; 中野 2019 神经;
+法国 2018 ⽆监督; 法国 2021 剪签⽐如教机器“ 如何绘画 ”，⽅式类似于⼈类画家。例如，
+⻩等⼈。huang2019 学习利⽤深度强化学习，学习⽆监督的笔触分解，以创建⾮照⽚
+级真实图像。邹等⼈。zou2021 ⻛格化使⽤渐变下降来优化整个绘画轨迹的笔触参
+数。同样，刘等⼈。刘 2021提出⼀种新的绘画变换器，将学习绘画问题表述为前馈集
+预测问题。  尽管效果显著，当前作品往往缺乏对图像内容的语义理解，且总是依赖于
+基于⽹格的渐进式分割策略，即绘画者将整体图像逐步划分为更细的⽹格，然后并⾏绘
+制每⼀个⽹格。这不可避免地导致了层级式的⾃下⽽上绘画序列，这些序列相当机械
+化，因此不适⽤于⼈类⽤⼾。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 2/31
+===== PAGE 3 =====
+本⽂提出了⼀种新颖的绘画流程Intelli-Paint，试图通过模仿⼈类绘画⻛格，满⾜语义
+感知绘画序列的需求  主要有三种⽅式。⾸先，我们提出了⼀种渐进式分层策略，类似
+于⼈类，允许绘画者依次将同⼀场景分成多层绘制。也就是说，我们的⽅法不是⼀次性
+开始绘制整个场景，⽽是先绘制逼真的背景场景表现，然后逐步添加每个前景物体。
+其次，⼈类绘画过程具有局部的空间注意⼒持续时间。例如，潜在艺术家会在绘制最终
+画布的不同部分时，专注于不同的局部图像区域赵 2020 绘画. 这与以往作品形成鲜明对
+⽐，后者要么专注于整幅图像，要么专注于多个预设⽹格块刘 2021; zou2021 ⻛格化. 为
+了更好地模仿⼈类⻛格，我们引⼊了顺序笔触引导⽅法，允许绘画者通过⼀系列局部注
+意⼒窗⼝在不同图像区域间转移注意⼒。  在绘画过程中，局部注意⼒窗⼝的空间尺⼨
+和位置会逐步调整，以呈现从粗到细的画⾯。
+第三，我们注意到以往作品常采⽤固定的笔触预算，这不仅导致浪费或重叠的笔触图案
+（参⻅图）。4）同时也赋予最终的创作者⼀种⼈⼯绘画⻛格。  为此，我们提出了⼀种
+推断时间笔触正则化公式，通过正则化绘制给定画布所需的总笔触数，消除笔触重复。
+我们的实验显⽰，这不仅导致∼笔触分解效率提升 60-80% ，同时也使绘画序列更⾃然，
+⼈类画家易于理解。  总之，为了开发类⼈绘画剂，本⽂做出以下贡献。
+• 我们引⼊了渐进式叠加⽅法，类似于⼈类，使绘画师能够将同⼀场景分成多层连
+续绘制。
+• 我们提出了⼀种顺序的笔触引导策略，使绘画者能够通过学习出⼀系列粗到细的
+局部注意⼒窗⼝，专注于不同的图像区域。
+• 最后，我们引⼊⼀种推断时间笔笔正则化过程，结果为∼笔触分解效率提升 60-
+80% ，绘制序列更⾃然，易于⼈类理解。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 3/31
+===== PAGE 4 =====
+2 相关⼯作
+图 2：⽅法概述。给定⽬标图像𝐼Intelli-Paint特⼯⾸先学会在画布上绘制逼真的背景场景。背景
+场景绘制完成后，代理会通过顺序笔触引导程序逐步添加前景对象。为此，绘画代理⾸先使⽤式
+7中的凸组合公式选择想要绘制的前景对象（由物体窗⼝表⽰）𝒢𝑡). 每个物体区域内的特征通过⼀
+系列局部注意⼒窗⼝以粗细到细致的⽅式绘制𝒲𝑡. 最后，笔触序列被输⼊正则化过程，去除笔触
+的冗余和重叠，以输出每个测试图像最⾼效的绘画序列。
+教机器“ 如何绘画 ”的问题在基于笔触的渲染（ SBR ）背景下已被⼴泛研究， SBR 侧重于
+通过适当位置和选择离散元素（如绘画笔触或点画）来重现⾮照⽚级真实图像
+Hertzmann 2003 调查; 曾 2009 图⽚. 传 统 的 SBR 算 法 通 常 需 要 贪 婪 搜 索
+赫茨曼  1998 画作; litwinowicz1997processing ， 基 于设 计 启 发 式 的 优 化
+⼟耳其 1996 图⽚ 或⽤⼾输⼊，⽤于选择每笔笔触的位置和性质海伯利 1990;
+Teece19983d. 较新的解决⽅案HA2017 神经; Graves2013 ⽣成采⽤循环神经⽹络计算最
+优笔触分解。  然⽽，这些⽅法需要访问密集的⼈⼯笔触注释，这限制了它们在⼤多数
+现实问题中的适⽤性。在另⼀项研究中，赵等⼈。赵 2020 绘画使⽤条件变分⾃编码器
+框架来合成描绘⽬标图像重现过程的延时视频。不过，这需要获得真实艺术家的延时摄
+影视频进⾏培训。此外，延时输出的分辨率远低于我们⽅法⽣成的⾼分辨率输出序列。
+近年来，⼈们越来越重视学习⽆需⼤量⼈为笔触注释即可学习⽆监督笔触分解。例如，
+近期作品谢 2013 艺术家; Jia2019Lpaintb; ganin2018 合成; Mellor 2019 ⽆监督;
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 4/31
+===== PAGE 5 =====
+(1)
+(2)
+(3)
+huang2019 学习; Singh2021 合并使⽤深度强化学习和对抗式训练⽅法，学习⾼效的笔
+触分解。基于优化的⽅法zou2021 ⻛格化通过对⼀种基于最优运输的损失函数进⾏梯度
+下降，直接寻找最优笔触参数。在另⼀项近期研究中，刘等⼈。刘 2021提出⼀种新的
+绘画变换器，将学习绘画问题表述为前馈笔画集预测问题。
+虽然上述作品展现了⾼质量输出画布的绘画能⼒，但其⽣成通常依赖于基于⽹格的渐进
+分割策略。在此环境中，代理将整体图像逐步细分成⽹格，然后并⾏绘制每⼀个⽹格。
+实验分析显⽰，这不仅降低了最终剂的效率，还导致机械（基于⽹格）的绘画序列，这
+些序列对⼈类⽤⼾来说不易理解。
+3 我们的⽅法
+Intelli-Paint 框架（参⻅图）2）基于两阶段混合优化策略，包含两个模块：顺序规划
+器和Stroke 正则化器。在第⼀阶段，顺序规划器学习预测笔触序列的粗略但类似⼈类的
+初始化𝐬𝑖 𝑛 𝑖 𝑡. 粗笔触序列初始化随后输⼊基于梯度下降的笔触正则化过程，  它去除了冗余
+的笔触图案，并优化了原始笔触参数，以输出最⾼效的笔画分解𝐬𝑝 𝑟 𝑒 𝑑对每个测试图像。
+该两阶段过程表述为：
+𝐬𝑖 𝑛 𝑖 𝑡 =𝑃 𝑙 𝑎 𝑛 𝑛 𝑒 𝑟 (𝐶𝑖 𝑛 𝑖 𝑡,𝐼𝑡 𝑎 𝑟 𝑔 𝑒 𝑡),
+𝐬𝑝 𝑟 𝑒 𝑑 =𝑆 𝑡 𝑟 𝑜 𝑘 𝑒 𝑅 𝑒 𝑔 (𝐬𝑖 𝑛 𝑖 𝑡,𝐼𝑡 𝑎 𝑟 𝑔 𝑒 𝑡),
+其中𝐶𝑖 𝑛 𝑖 𝑡表⽰空⽩画布初始化，𝐼是⽬标图像。在接下来的章节中，我们将详细讨论上述
+每个模块。
+3.1 顺序规划器
+3.1.1 强化学习表述
+顺序规划器被建模为深度强化学习代理，学习绘画策略𝜋预测⽮量化笔触参数𝐚𝑡从当前
+代理状态出发𝑠𝑡. 智能体状态𝑠𝑡在任何时间步𝑡建模为元组(𝐶𝑡,𝐼,𝑡,𝒢𝑡,𝒲𝑡,𝒮𝐼,𝑙)，  其中𝐶𝑡是
+画布态，𝐼是⽬标图像，𝒮𝐼表⽰⽬标图像显著性映射，𝑙是当前的绘画图层（第3.1.2节），
+且(𝒢𝑡,𝒲𝑡)分别代表绘画剂的粗局部注意窗⼝和细致的局部注意窗⼝（C.1节）。
+帆布状态𝐶𝑡通过可微分神经渲染器模块进⾏更新，该模块对预测的笔触参数进⾏了光栅
+化𝐚𝑡输出笔触  alpha 映射𝑆𝛼 (𝐚𝑡)以及彩⾊渲染𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡). 画布在每个时间步都会更新𝑡随后
+计算如下，
+𝐶𝑡+1 =𝐶𝑡 ⊙(1−𝑆𝛼 (𝐚𝑡))+𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡).
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 5/31
+===== PAGE 6 =====
+(4)
+(5)
+(6)
+接下来我们进⼀步讨论上述公式，该⽅法允许绘画者在展现类⼈绘画过程的同时⽣成画
+布。
+3.1.2 渐进分层
+⼈类绘画过程通常是渐进且多层次的赵 2020 绘画; Reyner2017layer. 也就是说，⼈类通
+常不是⼀次性在画布上绘制所有内容，⽽是先绘制⼀个基础的背景图层，然后逐步将前
+景的每个物体叠加在其上（参⻅图）。1）。然⽽，通过以往直接最⼩化像素距离的作
+品，很难学会这种策略𝐶𝑡以及⽬标图像𝐼.
+为此，我们提出了⼀种渐进式的叠加策略，类似于⼈类艺术家，允许绘画画布在多层连
+续中演变。  第⼀层绘画代理的⽬标是通过只聚焦于不显著的（背景）图像区域来绘制
+逼真的背景场景。在此过程中，突出图像区域会被绘制以最⼤化背景内容的绘画效率
+（例如，对应于⻦⼉栖息树上的突出区域，会在树叶和树枝上进⾏绘制，如图中所⽰。
+4）背景图层绘制完成后，下⼀层的绘画代理⼈会按显著度递减的顺序添加不同的前景
+物体。图中展⽰了两层绘画⼯艺的⽰意图。2. 绘画代理⾸先绘制逼真的背景场景（仅聚
+焦于背景图像内容，如地⾯、草地等），然后在第⼆层添加前景对象。
+为了实现这种层叠过程，我们⾸先将绘画⽚段分为以下多层，
+𝐶𝑜 𝑢 𝑡 =
+𝐿−1
+∑
+𝑙 =0
+𝑇/𝐿
+∑
+𝑡 =1
+𝐶𝑡𝑙 ⊙(1−𝑆𝛼 (𝐚𝑡𝑙))+𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡𝑙),
+其中𝐿=2是层数
+,𝑇是集数⻓度，𝐶0𝑙 =0表⽰初始画布为空，且𝐶0𝑙 =1初始化为画布输出𝐶𝑇/𝐿
+𝑙 =0来⾃最后
+⼀层。
+给定画布状态𝐶𝑡，输⼊图像𝐼以及前景显著性图𝒮𝐼，通过优化每层的分层奖励⽬标，即可
+实现分层绘画⻛格𝑙,
+𝑟𝑡
+𝑙 𝑎 𝑦 𝑒 𝑟 (𝑙) = 𝐷 (𝐼⊙ℳ𝐼 (𝑙),𝐶𝑡+1⊙ℳ𝐼 (𝑙))
+− 𝐷 (𝐼⊙ℳ𝐼 (𝑙),𝐶𝑡 ⊙ℳ𝐼 (𝑙)),
+其中𝐷 (𝐼,𝐶𝑡)是联合条件  Wasserstein GANArjovsky2017Wasserstein图像判别器评分𝐼
+以及帆布𝐶𝑡 huang2019 学习，以及分层掩膜ℳ𝐼 (𝑙)定义为，
+ℳ𝐼 (𝑙) =1−𝒮𝐼 ⊙(1−𝑙).
+ [1为了简化，我们主要使⽤𝐿=2在主报上。关于扩展渐进分层的详细信息𝐿>2提供于补充材
+料中。] 
+1
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 6/31
+===== PAGE 7 =====
+(7)
+(8)
+(9)
+(10)
+(11)
+(12)
+3.1.3 顺序笔触指导
+⼈类画家通常在专注于特定图像区域时表现出局部的空间注意⼒持续时间赵 2020 绘画.
+这与以往作品形成鲜明对⽐，后者要么在整个画布上全局计算笔画分解，要么在⼀组预
+定义的⽹格区域上计算huang2019 学习; 刘 2021; zou2021 ⻛格化. 为此，我们提出了⼀
+种顺序笔触引导策略，允许强化学习代理通过⼀系列从粗到细的注意⼒窗⼝在不同图像
+区域间转移注意⼒{𝒲0,𝒲1…𝒲𝑇}.局部注意⼒窗⼝的计算𝒲𝑡在任何时间步𝑡通过以下⼤致
+步骤完成，
+前景对象选择。强化学习代理⾸先通过预测粗略全局注意⼒窗⼝的坐标来选择聚焦中的
+前景物体𝒢𝑡. 给定⼀个输⼊图像𝐼其中𝑁前景物体，我们建模𝒢𝑡 =𝑥𝑡
+𝒢,𝑦𝑡
+𝒢,𝑤𝑡
+𝒢,ℎ𝑡
+𝒢作为每个图
+像内物体边界框检测的凸组合ℬ𝑖 ∈ℝ4,𝑖 ∈[1,𝑁].
+𝒢𝑡 =
+𝑁
+∑
+𝑖 =0
+𝛼𝑖𝑡 ℬ𝑖, 𝑠.𝑡. ∀𝑡 ∑
+𝑖
+𝛼𝑖𝑡 =1, 𝛼𝑖𝑡 ≥0.
+其中𝛼𝑡 ={𝛼1𝑡, …  𝛼𝑁𝑡 } ∈ℝ𝑁是强化学习代理在时间步预测的空间注意⼒参数𝑡.ℬ0表⽰整
+个画布的注意⼒窗⼝，并在切换焦点到背景图像区域时使⽤。
+本地关注窗⼝选择。在每个对象窗⼝内𝒢𝑡，代理进⼀步学会通过⼀系列粗细的局部注意
+⼒窗⼝，顺序地将注意⼒转移到不同的对象内特征上𝒲𝑡. 特别地，给定粗对象窗⼝坐标
+𝑥𝑡
+𝒢,𝑦𝑡
+𝒢,𝑤𝑡
+𝒢,ℎ𝑡
+𝒢坐标𝒲𝑡 =𝑥𝑡ℒ,𝑦𝑡
+ℒ,𝑤𝑡ℒ,ℎ𝑡ℒ对于更细的局部注意窗⼝，则以⻢尔可夫⽅式计算
+为，
+𝑥𝑡+1ℒ =𝑥𝑡+1
+𝒢 +(𝑥𝑡ℒ+Δ 𝑥𝑡)  𝑤𝑡+1
+𝒢 ,
+𝑦𝑡+1
+ℒ =𝑦𝑡+1
+𝒢 +(𝑦𝑡
+ℒ+Δ 𝑦𝑡)  ℎ𝑡+1
+𝒢 ,
+𝑤𝑡+1ℒ =(𝑚𝑎 𝑥 (1−~𝑡,𝑤𝑚 𝑖 𝑛)+Δ 𝑤𝑡)  𝑤𝑡+1
+𝒢 ,
+ℎ𝑡+1ℒ =(𝑚 𝑎 𝑥 (1−~𝑡,ℎ𝑚 𝑖 𝑛)+Δ ℎ𝑡)  ℎ𝑡+1
+𝒢 ,
+其中~𝑡 ∈[0,1]是归⼀化的集数时间步⻓，(𝑤𝑚 𝑖 𝑛,ℎ𝑚 𝑖 𝑛)是最⼩注意⼒窗⼝维数，且
+(Δ 𝒲𝑡 =Δ 𝑥𝑡,Δ 𝑦𝑡,Δ 𝑤𝑡,Δ ℎ𝑡) ∈ℝ4是连续的⻢尔可夫分布加尼乌克 2017 ⻢尔科夫由强化智
+能体预测的更新。
+笔触参数调整。最后，利⽤局部注意⼒窗⼝的坐标来修改预测的笔触参数𝐚𝑡𝑙，这样可以
+限制绘画者只在局部注意⼒窗⼝内作画。  该过程可表⽰为，
+𝐚𝑡𝑙 ←𝑃 𝑎 𝑟 𝑎 𝑚 𝐴𝑑 𝑗 𝑢 𝑠 𝑡 𝑚 𝑒 𝑛 𝑡 (𝐚𝑡𝑙,𝒲𝑡).
+关于调整函数实现的更多细节⻅补充材料。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 7/31
+===== PAGE 8 =====
+(13)
+(14)
+(15)
+3.1.4 ⼈类⼀致性惩罚
+⼈类艺术家本质上会专注于空间上较近的图像区域，并尽量避免在绘制给定图像时出现
+不必要的空间振荡赵 2020 绘画. 在这⽅⾯，虽然C.1节引⼊的⻢尔可夫调整程序确保了两
+个连续局部注意窗⼝的空间接近𝒲𝑡由于不同粗观注意⼒窗⼝之间的振荡，仍可能产⽣
+不必要的运动𝒢𝑡. 为了防⽌学习此类笔画分解，我们引⼊了以下空间惩罚奖励，
+𝑟𝑡
+𝑠 𝑝 𝑎 𝑡 𝑖 𝑎 𝑙 =−‖𝒢𝑡+1−𝒢𝑡‖𝐹,
+其中∥.∥𝐹代表弗罗⻉尼乌斯范数。
+同样，⼈类绘画序列也以连续时间步中使⽤相同或相似的⾊彩图案为特征赵 2020 绘画.
+因此，为了模拟这种⾏为，我们提出了以下颜⾊转换惩罚𝑟𝑡𝑐 𝑜 𝑙 𝑜 𝑟,
+𝑟𝑡𝑐 𝑜 𝑙 𝑜 𝑟 =−‖(𝑅,𝐺,𝐵)𝑡+1−(𝑅,𝐺,𝐵)𝑡‖𝐹,
+其中(𝑅,𝐺,𝐵)𝑡表⽰时间步上的笔触颜⾊预测⽮量𝑡.
+3.2 笔触正则化
+当前关于⾃主绘画系统的研究通常仅限于使⽤（⼏乎）固定的笔触预算，⽆论⽬标图像
+的复杂度如何。实验显⽰，这不仅会降低绘画序列的效率，还会导致笔触图案重复 / 重
+叠（⻅图）。4）赋予最终画师⼀种不⾃然的绘画⻛格。
+为此，我们提出了⼀种推断时间笔笔正则化策略，细化并消除初始笔触序列预测的冗余
+𝐬𝑖 𝑛 𝑖 𝑡以输出最⾼效的笔画分解𝐬𝑝 𝑟 𝑒 𝑑对每个测试图像。为此，我们⾸先将每个笔触与对应
+的重要性向量关联起来𝛽𝑡
+𝑙 ∈[0,1]通过修改笔画渲染过程为，
+𝐶𝑜 𝑢 𝑡 =
+𝐿−1
+∑
+𝑙 =0
+𝑇/𝐿
+∑
+𝑡 =1
+𝐶𝑡𝑙 ⊙(1−𝛽𝑡
+𝑙 𝑆𝛼 (𝐚𝑡𝑙))+𝛽𝑡
+𝑙 𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡𝑙),
+其中𝛽𝑡
+𝑙 =𝑆 𝑖 𝑔 𝑛 (𝑥𝑡𝑙)以及𝑥𝑡𝑙 ∼𝒩 (0,10−3)是从正态分布随机初始化的。
+然后我们使⽤梯度下降来优化以下对两个笔触参数的损失函数𝐚𝑡𝑙以及重要性向量𝛽𝑡
+𝑙（通
+过𝑥𝑡𝑙):
+ℒ𝑡 𝑜 𝑡 𝑎 𝑙 (𝐚𝑡𝑙,𝑥𝑡𝑙) =ℒ2 (𝐼,𝐶𝑜 𝑢 𝑡)+𝛾  
+𝐿−1
+∑
+𝑙 =0
+𝑇/𝐿
+∑
+𝑡 =1
+‖𝛽𝑡
+𝑙‖1,
+其中反向传播梯度为∂𝛽𝑡
+𝑙 /∂𝑥𝑡𝑙计算为𝜎 (𝑥𝑡𝑙) (1−𝜎 (𝑥𝑡𝑙)),𝜎(.)是 S 形函数，𝛾在笔触精细化与
+尽可能少的笔触之间取得平衡。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 8/31
+===== PAGE 9 =====
+图 3：定性⽅法与绘画效率的⽐较。在使⽤∼300 笔刷（ b ）我们的，（ c ）油漆变形器刘 2021，
+（ d ）  Optimzou2021 ⻛格化 ，  （ e ）  RLhuang2019 学习 以及  （ f ）  语义强化语⾔
+Singh2021 合并. 我们观察到，这种⽅法能在使⽤低笔触数量的情况下更准确地描绘⽬标图像中的
+细粒特征。请放⼤以便更好地对⽐。
+4 实现细节
+神经渲染器。本⽂主要采⽤ Huang等⼈的PixelShuffleNet架构。huang2019 学习在设
+计神经微分渲染器时。虽然我们的⽅法不局限于特定的渲染机制，但我们发现
+zou2021 ⻛格化; 刘 2021，使⽤更⾃然融合的笔触表⽰，来⾃huang2019 学习使我们的
+⽅法能够更贴近地模仿⼈类的绘画⻛格。
+分层训练。使⽤渐进分层模块时，需要在每层条件下训练绘画代理策略，同时⽤上⼀层
+的输出初始化画布状态。为了节省训练中的计算时间，我们连续批次训练后续层策略，
+同时使⽤上⼀层的画布输出。此外，我们仅使⽤𝐿=2训练时穿多层。在推理时，可以
+应⽤训练有素的渐进分层策略𝐿>2通过适当修改⽬标图像显著性映射来进⾏图层。详
+情请参阅补充资料。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 9/31
+===== PAGE 10 =====
+显著性和边界框预测。 Intelli-Paint 流程的⼀个关键组成部分是顺序笔触引导策略，该
+策略依赖于计算物体显著性和边界框预测。  在本研究中，我们使⽤预训练的 U-2-Net 模
+型U2NET模型以计算前景显著性预测。边界盒预测随后作为预训练  Yolo-v5 对边界盒
+输出的并集计算yolo_v5以及显著性预测输出的整体边界框。
+整体训练。基于强化学习的顺序规划代理使⽤基于模型的 DDPG 算法进⾏训练
+huang2019 学习每个层的总体奖励函数如下𝑙,
+𝑟𝑡𝑜 𝑣 𝑒 𝑟 𝑎 𝑙 𝑙 (𝑙) =𝑟𝑡
+𝑙 𝑎 𝑦 𝑒 𝑟 (𝑙)+𝜇  𝑟𝑡
+𝑔 𝑏 𝑝+𝜂  𝑟𝑡
+𝑠 𝑝 𝑎 𝑡 𝑖 𝑎 𝑙 +𝛾  𝑟𝑡𝑐 𝑜 𝑙 𝑜 𝑟,
+其中𝑟𝑡
+𝑔 𝑏 𝑝是基于引导反向传播的焦点奖励，来⾃Singh2021 合并. 超参数𝜇在我们的实验
+中，将  设置为  10 ，⽽⼈类⼀致性惩罚系数则为𝜂,𝛾由10−4到0.1在培训过程中按线性时间
+表进⾏。最终的强化智能体训练总共 500 万次迭代，批次⼤⼩为 128 次。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 10/31
+===== PAGE 11 =====
+图 4：定性⽅法⽐较与⼈类绘画⻛格的相似性。我们⽐较不同的⽅法（ b-f ）。所有绘画序列均使
+⽤不同的笔触计数⽣成（框中标⽰），以确保与⽬标图像像素层次重建损失相似。每个序列对应
+的帧在之后计算∼占整集画作的 10% 、 40% 、 60% 和 100% 。我们清楚地看到我们的⽅法  与之前
+的作品相⽐，更接近⼈类绘画⻛格。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 11/31
+===== PAGE 12 =====
+5 与技术最新⽔平的⽐较
+在本节中，我们将通过与最新最先进的神经绘画⽅法进⾏⼴泛的定性和定量结果进⾏⽐
+较huang2019 学习; zou2021 ⻛格化; Singh2021 合并; 刘 2021. ⾸先，在第 5.1节，我们
+展⽰了在使⽤有限笔触时，我们⽅法在⽣成细致画作⽅⾯的提升效率。其次，我们证明
+我们的⽅法导致绘画序列与⼈类绘画⻛格的相似度增加（参⻅第 5.2节）。最后，我们讨
+论了我们⽅法所做出的⼀些假设，并分析了我们⽅法对潜在违规⾏为的鲁棒性（参⻅第
+5.3节）。
+5.1 绘画效率
+定性⽐较。⽆花果。3展⽰了⽤每幅画布 300 笔画的低预算对⽣成画布进⾏定性⽐较。
+注意由于 Paint Transformer 的⽹格分类表述刘 2021以及 Optimzou2021 ⻛格化，相应
+结果在∼分别是 360 和 330 笔。我们清楚地看到，我们的⽅法能更准确地描绘⽬标图像
+（例如图 1-3 ⾏中汽⻋、⼩屋和⻦类的细颗粒特征）。3）在使⽤有限笔触时。  相⽐之
+下，以往的⽅法往往缺乏智能的⾼效笔触分布机制，导致在使⽤有限笔触预算时表现较
+差。有趣的是，我们还注意到，虽然 Paint Transformer （变形⾦刚）在刘 2021推理速
+度有所提升，但性能不如之前的 Optim 等⽅法。zou2021 ⻛格化当使⽤少量笔触时。
+定量⽐较。表1展⽰了最终⽣成画布质量的定量结果，使⽤以下⽅法。∼每块画布 300
+笔。最终结果以像素数两种⽅式报告𝑙2 距离ℒ𝑝 𝑖 𝑥 𝑒 𝑙 以及感知相似性损失ℒ𝑝 𝑐 𝑝 𝑡
+约翰逊 2016 感知在最终画布和⽬标图像之间。定量数据显⽰，我们的⽅法相⽐以往作
+品显著降低了画布与⽬标图像之间的距离指标。特别地，我们注意到对于 CUB-Birds 数
+据集WahCUB_200_2011我们的⽅法导致了 47.1% 、 25.6% 、 24.9% 和 38.2% 的下降。
+ℒ𝑝 𝑖 𝑥 𝑒 𝑙距离度量与强化学习的⽐较huang2019 学习，  Semantic-RLSingh2021 合并，
+Optimzou2021 ⻛格化以及油漆变压器刘 2010 单曲，分别。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 12/31
+===== PAGE 13 =====
+ 
+⽅法 斯坦福汽⻋克劳斯·斯塔克登⻜Fei_3DRR2013 幼⻦WahCUB_2
+ℒ𝑝 𝑖 𝑥 𝑒 𝑙 ℒ𝑝 𝑐 𝑝 𝑡 ℒ𝑝 𝑖 𝑥 𝑒 𝑙
+现实⽣活
+huang2019学习 97.85 0.67 96.14
+语义强化语⾔
+Singh2021合并 79.98 0.55 68.46
+Optim
+zou2021⻛格化 76.52 0.54 67.90
+变压器刘2021 87.78 0.57 82.43
+我们的 56.92 0.44 50.94
+表 1：⽅法⽐较绘画效率。 我们的⽅法能在有限的笔触预算下，更准确地描绘⽬标图像。
+5.2 与⼈类绘画⻛格的相似性
+定性⽐较。我们通过定性⽐较我们⽅法⽣成的绘画序列与真实⼈类艺术家绘制的序列，
+展⽰了该⽅法对真实⼈类⽤⼾的实际应⽤。结果⻅图。4. 我们观察到，我们的⽅法在层
+次绘画演变和局部关注⽅⾯与⼈类绘画⻛格⾼度相似。相⽐之下，以往最先进的⽅法常
+常试图直接最⼩化画布与⽬标图像之间的像素距离，从⽽导致中间画布状态，对⼈类⽤
+⼾来说难以理解。
+例如，在图中的第⼀个例⼦中，4，就像⼈类画家⼀样，我们的⽅法⾸先绘制写实背景
+（包括天空、⼭脉、河流和地⾯），然后以粗细到细腻的⽅式绘制前景的汽⻋。这使绘
+画画布演变出更接近⼈类的形象，也很容易与真实的⼈类艺术家产⽣共鸣。相⽐之下，
+像 Paint Transformer 这样的⽅法刘 2021 ， Optimzou2021 ⻛格化 以及  RL
+huang2019 学习直接基于低层图像特征绘制笔触（例如图中第 1 ⾏汽⻋的红⾊笔触和第
+5 ⾏⻦头的红⾊笔触。4）。这导致了更多⾃下⽽上的绘画序列，与⼈类⻛格不同。  与此
+同时， Semantic-RLSingh2021 合并试图同时绘制前景和背景区域，因此缺乏⼈类使⽤
+者所展现的语义绘画演化。
+定量⽐较。我们还报告了定量结果，展⽰了我们⽅法相较于以往⼯作更适合⼈类的表
+现。为此，我们设计了⼀个⼈类⽤⼾研究，每位参与者都会看到⼀系列成对的绘画序
+列，⽐较我们的⽅法与以往作品。每对，受试者被要求选择最符合⼈类绘画⻛格的绘画
+序列。⽤⼾研究涵盖了 50 名独特的亚⻢逊机械⼟耳其⼈受试者以及⼀组随机抽选的 100
+个 CelebA 绘画序列名⼈美⼈总部以及 CUB-Birds （幼⻦）WahCUB_200_2011数据集。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 13/31
+===== PAGE 14 =====
+结果⻅表2。我们清楚地看到，我们的⽅法导致的绘画序列被⼤多数⼈类⽤⼾认为更接
+近⼈类绘画⻛格。
+⽅法 Intelli-Paint偏好
+现实⽣活huang2019学习 83.11 %
+语义强化语⾔Singh2021合并 69.09 %
+Optimzou2021⻛格化 75.41 %
+变压器刘2021 86.50 %
+表 2：⽤⼾研究：显⽰⼈类⽤⼾偏好 Intelli-Paint 序列⽽⾮以往作品的绘画样本⽐例。  在这四项
+研究中，选择 Intelli-Paint 的⽤⼾⽐例较⾼。
+5.3 对限制 / 假设的鲁棒性
+虽然我们的⼯作在绘画效率和⽣成绘画序列的⼈类可能性上取得了显著提升，但这也建
+⽴在⼀些固有假设之上。⾸先，我们指出我们的⽅法仅模仿⼈类绘画过程的某些⼀般⽅
+⾯（渐进叠加、粗糙到细致局部的关注），因此不声称能针对每位⼈类艺术家绘画⻛格
+的细腻差异进⾏校准。然⽽，正如表2所⽰，我们的绘画⻛格被⼤多数⼈类⽤⼾认为更
+易产⽣共鸣。
+其次，我们的⽅法依赖图像显著性掩码的计算，以实现绘画画布的类⼈演化。因此，预
+训练 U2-Net 存在局限性U2NET模型成为我们的局限。然⽽，我们注意到，未能检测到
+某个显著物体只会导致在背景图层中绘制对应区域，从⽽不影响最终画布的质量。
+最后，为了学习⼀种类⼈画⻛，  我们的⽅法需要在真实图像数据集上进⾏⾃我监督训
+练。这与 Paint Transformer 形成对⽐刘 2021它在⼈⼯数据集上进⾏⾃我训练，以及
+Optimzou2021 ⻛格化这并不需要任何培训。话虽如此，⼀旦训练好，我们发现我们的
+⽅法能够在推理时间上推⼴到多个领域。例如，我们注意到所有结果均⻅图。3、4 是
+⽤仅在  CUB-Birds 上训练的  Intelli 涂装模型⽣成的WahCUB_200_2011数据集。
+6 结论
+本⽂强调，⾃主绘画系统的实际价值不仅应通过⽣成画布的质量来评估，还应以实际⼈
+类艺术家对相应绘画序列的可解读性来评估。为此，我们提出了⼀种新型的 Intelli-
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 14/31
+===== PAGE 15 =====
+Paint流程，利⽤渐进分层，使绘画画布呈现出更接近⼈性化的进化。绘画代理通过⼀
+系列粗细的局部注意⼒窗⼝聚焦不同的图像区域，能够在有限的笔触下绘制细致场景。
+实验显⽰，与以往最先进的⽅法相⽐，我们的⽅法不仅提升了绘画效率，还展现出更贴
+近真实⼈类⽤⼾的绘画⻛格。
+参考⽂献
+(1) ⻢丁 · 阿尔约夫斯基、苏⽶特 · 钦塔拉和莱昂 · 博图。
+⽡瑟斯坦。
+arXiv 预印本  arXiv ： 1701.07875，  2017 。
+(2) 凯⽂ · 克劳斯顿。
+亚⻢逊机械⼟耳其⼈：为组织和  信息系统学者。
+在塑造 ICT 研究的未来。⽅法与⽅法，  第 210–221 ⻚。施普林格出版社， 2012 年。
+(3) 凯⽂ · 弗兰斯和陈怡。
+⽆监督图像到序列翻译，使⽤ canvas-drawer ⽹络。
+arXiv 预印本  arXiv ： 1809.08340,2018年。
+(4) 凯⽂ · 弗兰斯、线卫索罗斯和奥拉夫 · 维特科夫斯基。
+Clipdraw ：通过语⾔图像探索⽂本与绘画的综合  编码器。
+arXiv 预印本  arXiv ： 2106.14843,2021年。
+(5) 保罗 ·A· 加尼乌克。
+⻢尔可夫链：从理论到实现  实验。
+约翰 · 威利⽗⼦公司， 2017 年。
+(6) 雅罗斯拉夫 · 加宁、特贾斯 · 库尔卡尼、伊⼽尔 · 巴布什⾦、 SM· 埃斯拉⽶和奥⾥奥尔 · 维
+尼亚尔斯。
+使⽤强化对抗图像的合成程序  学习。
+arXiv 预印本  arXiv ： 1804.01118,2018年。
+(7) 亚历克斯 · 格雷夫斯。
+⽣成循环神经⽹络序列。
+arXiv 预印本  arXiv ： 1308.0850,2013年。
+(8) ⼤卫 · 哈和道格拉斯 · 埃克。
+草图的神经表⽰。
+arXiv 预印本  arXiv ： 1704.03477,2017年。
+(9) 保罗 · 海伯利。
+数字绘画：抽象图像表现。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 15/31
+===== PAGE 16 =====
+载于第 17 届计算机年会论⽂集  《图形与交互技术》，第 207–214 ⻚， 1990 年。
+(10) 亚伦 · 赫茨曼。
+采⽤多种⼤⼩的曲线笔触进⾏绘画式描绘。
+载于第 25 届计算机年会论⽂集  《图形与交互技术》，第 453–460 ⻚， 1998 年。
+(11) 亚伦 · 赫茨曼。
+笔画渲染概览。
+电⽓与电⼦⼯程师学会， 2003 年。
+(12) ⻩哲伟、⽂恒和周书昌。
+基于模型的深度强化学习绘画。
+载于IEEE 国际计算机会议论⽂集  《视觉》，第 8709–8718 ⻚， 2019 年。
+(13) 彪佳、乔纳森 · 布兰特、拉多⽶尔 · 梅奇、⾦炳⽂和迪内什  ⻢诺查。
+Lpaintb ：通过⾃我监督学习绘画。
+arXiv 预印本  arXiv ： 1906.06841,2019年。
+(14) 格伦 · 乔彻，亚历克斯 · 斯托肯，阿尤什 · 乔拉西亚，吉尔卡 · 博罗维茨，
+NanoCode012 ，陶谢，  权永惠、迈克尔 · 卡伦、刘⻓宇、⽅嘉聪、阿⽐拉姆 ·V 、拉
+⾟，  特基亚奈、 yxNONG 、⽪奥特 · 斯卡尔斯基、亚当 · 霍根、杰巴斯汀 · 纳达尔、伊⽶
+克西、洛伦佐  ⻢⻢纳，亚历克斯 · 旺 1900 年，克⾥斯蒂 · 法蒂，迭⼽ · 蒙特斯，扬 · 哈耶
+克，劳伦蒂乌  迪亚科努、迈清明、⻢克、阿尔宾沙维、法提、奥列格和王浩阳
+0106 。
+ultralytics/yolov5 ： v6.0 - YOLOv5n“Nano” 型号， Roboflow 集成， TensorFlow
+导出， OpenCV DNN ⽀持， 2021 年  10 ⽉。
+(15) 贾斯汀 · 约翰逊、亚历⼭⼤ · 阿拉希和李⻜⻜。
+实时⻛格传输和超分辨率的感知损失。
+载于欧洲计算机视觉会议，第 694–711 ⻚。  施普林格出版社， 2016 年。
+(16) 德⽶特罗 · 科托⽂科、⻢蒂亚斯 · 赖特、亚瑟 · 海姆布雷希特和⽐约恩 · 奥默。
+重新思考⻛格传递：从像素到参数化笔触。
+arXiv 预印本  arXiv ： 2103.17185,2021年。
+(17) 乔纳森 · 克劳斯、迈克尔 · 斯塔克、贾 · 邓和李⻜⻜。
+⽤于细粒度分类的三维对象表⽰。
+在第四届国际 IEEE 三维表⽰研讨会上，  认可（ 3dRR-13 ），澳⼤利亚悉尼， 2013 年。
+(18) 李程汉、刘紫薇、吴灵云和罗平。
+Maskgan ：⾯向多样且互动的⾯部图像处理。
+在IEEE 计算机视觉与模式识别会议上  （ CVPR ），  2020 年。
+(19) 彼得 · 利特温诺维茨。
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 16/31
+===== PAGE 17 =====
+处理图像和视频以营造印象派效果。
+载于第 24 届计算机年会论⽂集  《图形与交互技术》，第 407–414 ⻚， 1997 年。
+(20) ⻉扬 · 刘、斯蒂芬 · 古尔德和达芙妮 · 科勒。
+从预测语义标签进⾏单图像深度估计。
+2010 年， IEEE 计算机学会计算机视觉会议，  《模式识别》，第 1253–1260 ⻚。
+IEEE ， 2010 年。
+(21) 刘松华、林天威、何东良、傅⽴、邓瑞峰、新丽、⼆睿  丁，还有浩王。
+Paint Transformer ：⽤笔画前进神经绘画  预测。
+arXiv 预印本  arXiv ： 2108.03798,2021年。
+(22) 约翰 ·FJ· 梅洛尔，朴恩炳，雅罗斯拉夫 · 加宁，伊⼽尔 · 巴布什⾦，特贾斯 · 库尔卡尼，
+丹 · 罗森鲍姆、安迪 · 巴拉德、西奥凡 · ⻙伯、奥⾥奥尔 · 维尼亚尔斯和 SM· 埃斯拉⽶。
+⽆⼈监督的涂鸦和绘画，螺旋效果更好。
+arXiv 预印本  arXiv ： 1910.01007,2019年。
+(23) 中野怜⼀郎。
+神经画家：⼀种学习到的可微约束⽤于⽣成  笔触画作。
+arXiv 预印本  arXiv ： 1904.08410,2019年。
+(24) 秦雪斌、张⼦⾠、⻩⾠阳、⻢苏德 · 德⽢、奥斯玛 · 扎安，以及  ⻢丁 · 雅格桑德。
+U2-net ：深⼊探讨突出物体的嵌套 U 结构  侦测。
+第 106 卷，第 107404 ⻚， 2020 年。
+(25) 南希 · 雷纳。
+如何⽤层次作画 —— ⽤丙烯和油画， 2017 年 12 ⽉。
+(26) 贾斯基拉特 · ⾟格和梁正。
+结合语义指导与深度强化学习  ⽣成⼈类级别的画作。
+载于IEEE/CVF 计算机视觉会议论⽂集，  《模式识别》，第 16387–16396 ⻚， 2021
+年。
+(27) 阿维谢克 · 西⾥斯、焦建博、谭嘉伦、谢湘华和刘林森。
+推断物体的注意⼒排名转移以增强图像显著性。
+在IEEE/CVF 计算机视觉与图案会议中  认可（ CVPR ），2020 年 6 ⽉。
+(28) 丹尼尔 · 蒂斯。
+⾮照⽚级真实渲染的 3D 绘画。
+在ACM SIGGRAPH 98 会议摘要与应⽤⻚⾯中  248, 1998.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 17/31
+===== PAGE 18 =====
+(29) 格雷格 · 特克和⼤卫 · 班克斯。
+图像引导的简化放置。
+载于第 23 届计算机年会论⽂集  《图形与交互技术》，第 453–460 ⻚， 1996 年。
+(30) C. Wah 、 S. Branson 、 P. Welinder 、 P. Perona 和  S. Belongie 。
+加州理⼯ - 加州⼤学圣地亚哥分校⻦类 -200-2011 数据集。
+技术报告  CNS-TR-2011-001 ，加州理⼯学院，  2011.
+(31) 宁谢、⼋⾕弘孝和杉⼭正志。
+艺术家代理：⼀种强化学习的⾃动笔画⽅法  《东⽅⽔墨画的⽣成》。
+IEICE 信息与系统汇刊，  96(5):1134–1144, 2013.
+(32) 余嘉辉、林哲、杨季美、沈晓辉、陆欣和⻩托⻢斯。
+带有上下⽂关注的⽣成图像修复。
+载于IEEE 计算机视觉会议论⽂集及  《模式识别》，第 5505–5514 ⻚， 2018 年。
+(33) 昆曾、赵明天、熊才明和宋春珠。
+从图像解析到绘画渲染。
+ACM 译⽂图。，  29 （ 1 ）： 2–1 ，  2009 年。
+(34) 艾⽶ · 赵、古哈 · 巴拉克⾥希南、凯瑟琳 ·M· 刘易斯、弗雷多 · 杜兰、约翰 ·V· 古塔格，  以
+及阿德⾥安 ·V· 达尔卡。
+绘制许多过去：合成绘画的延时视频。
+载于IEEE/CVF 计算机视觉会议论⽂集，  《模式识别》，第 8435–8445 ⻚， 2020 年。
+(35) Ningyuan Zheng, Yifan Jiang, and Dingjiang Huang.
+Strokenet: A neural painting environment.
+In International Conference on Learning Representations, 2018.
+(36) Zhengxia Zou, Tianyang Shi, Shuang Qiu, Yi Yuan, and Zhenwei Shi.
+Stylized neural painting.
+In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 15689–15698, 2021.
+Supplementary Material
+Intelli-Paint: Towards Developing Human-like Painting Agents
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 18/31
+===== PAGE 19 =====
+Figure 5:Artistic Painting Evolution. In contrast with previous works which directly
+try to minimize the ℒ𝑝 𝑖 𝑥 𝑒 𝑙 distance between the painted canvas and the original image (d),
+our method allows for a more human-like evolution of the painted canvas across
+different domains. For instance, for faces it first begins with a rough facial outline shown
+in (a). It then refines this outline further to paint the highly artistic human-like
+intermediate representation in (b), before finally adding all facial details (eyes, nose,
+lips) in the final painting (c).
+Appendix A Analysis: Progressive Layering
+The progressive layering module forms one of the key components of the Intelli-
+paint pipeline. In this section, we further discuss different aspects of the
+progressive layering module. First, we demonstrate the human-like artistic
+painting evolution exhibited by our method for the facial domain in
+Appendix A.1. We then analyse the use of the progressive layering module as an
+effective alternative to performing foreground object removal for non-standard
+object masks (refer Appendix  A.2). Finally, we provide a formulation for
+extending the proposed layering mechanism for 𝐿>2 layers (refer
+Appendix A.3).
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 19/31
+===== PAGE 20 =====
+A.1 Artistic Painting Evolution
+By allowing the final painting agent to draw a given scene in multiple
+successive layers, the progressive layering strategy facilitates for a more
+human-like evolution of the painted canvas reyner2017layer. In this section, we
+analyse some intermediate canvas representations painted by our method, and
+compare its resemblance with the human-like ideation process for the facial
+domain.
+Figure 6:Intelli-paint for foreground object removal. Comparing foreground object
+removal using (b) progressive layering vs GAN-based image inpainting from (c) Yu et al.
+yu2018generative. Our method performs image inpainting using learning to paint
+paradigm itself and results in much more natural background scene representations as
+opposed to GAN based image inpainting methods for non-standard object masks.
+Results are shown in Fig. 5. We observe that instead of directly trying to
+minimize the pixel-wise distance between the painted canvas and the target
+image (as is done in previous works), our method takes a much more human-
+like approach to portrait generation. For instance, consider the second example
+(row-2) for the painting sequence in the right column. Instead of directly
+painting based on low-level features (e.g. white brushstrokes for the mouth
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 20/31
+===== PAGE 21 =====
+(16)
+region), our method first draws a rough outline for the facial shape. It then
+refines this outline whilst indicating (but not drawing) the potential locations of
+important focalpoints (eyes, nose, lips) through appropriate facial shading. Only
+after the intermediate sketch has been set up, does it then proceed to add the
+fine-grain details on the exact facial features (eyes, nose, mouth, etc).
+A.2 Application: Foreground Removal
+The progressive layering module of the Intelli-Paint pipeline also provides an
+effective alternative for performing foreground object removal using non-
+standard object masks. As compared to previous GAN based methods, our
+method performs image in-painting over the foreground regions using the
+learning to paint paradigm itself. Results are shown in Fig. 6. We clearly see that
+the intermediate canvases generated using our method result in much more
+natural looking background scene representations. In contrast, GAN based
+image-inpainting methods show poor generalizability over large non-standard
+object masks and clearly reveal the presence of the foreground object in the
+final image predictions.
+A.3 Extending Progressive Layering
+The progressive layering formulation discussed in the main paper primarily
+divides the painting process into two broad layers (background and
+foreground). In this section, we show that the original two layered progressive
+formulation can be easily extended to 𝐿>2 layers by using ranked saliency
+maps siris_2020_ranked for the target image 𝐼.
+In particular, consider a ranked saliency map 𝒮𝐼, such that {𝒮𝐼[𝑘]}𝑘=1
+𝐿  indicate the
+salient regions for the target image 𝐼 ranked in increasing order of saliency. The
+progressive layering strategy can then be trivially extended to 𝐿>2 layers by
+using the following layered-mask ℳ𝐼 (𝑙) (refer Eq. 5, 6 in the main paper) for
+each layer 𝑙,
+ℳ𝐼 (𝑙) =1−
+𝐿−𝑙
+⋃𝑘=1
+𝒮𝐼 [𝑘].
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 21/31
+===== PAGE 22 =====
+Figure 7:Progressive Layering for 𝐿>2 layers. The agent first begins by painting a
+realistic background scene. Once the background layer is drawn, the painting agent in
+each successive layer then proceeds to add different foreground objects in decreasing
+order of saliency.
+Results for progressive painting sequences while using 𝐿>2 layers are shown
+in Fig. 7. The painting process is divided in three layers. We observe that in the
+first layer, the painting agent proceeds to draw a realistic background scene on
+the canvas. In the second layer, it then proceeds to add the most salient object
+(white car) on to the canvas. Finally, in the third layer it shifts its attention to
+the least salient object (cow) in order to complete the final painting.
+Appendix B Ablation Studies
+The Intelli-paint pipeline utilizes three main modules for mimicking the human
+painting style: 1) progressive layering, 2) sequential brushstroke guidance and
+3) brushstroke regularization. In this section, we aim to understand the
+contribution of each of these modules in the development of a human-like
+painting process. However, since the main focus of our method is the recreation
+of the human artistic creation process, we argue that the effect of each module
+is best understood by visualizing the corresponding painting sequences. We
+thus refer the readers to the official project webpage (https://1jsingh.github.io/intelli-
+paint) for detailed visualizations on the importance of each module in the
+human-like painting process.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 22/31
+===== PAGE 23 =====
+Appendix C Algorithm Details
+In this section, we further elaborate on some algorithm details which could not
+be included / fully explained due to space constraints in the main paper.
+C.1 Sequential Brushstroke Guidance
+The sequential brushstroke guidance strategy (discussed in Sec. 3.1.3 of main
+paper), allows the reinforcement learning based sequential planner agent to
+shift its attention between different image regions through a sequence of
+coarse-to-fine attention windows {𝒲0,𝒲1…𝒲𝑇}. The computation of the
+localized attention window 𝒲𝑡 at any timestep 𝑡 is done in the following broad
+steps.
+Foreground object selection. The RL agent first selects the in-focus foreground
+object by predicting coordinates of a coarse global attention window 𝒢𝑡. Given
+an input image 𝐼 with 𝑁 foreground objects, the computation of the coarse
+attention window 𝒢𝑡 can be expressed through Algorithm 1.
+Algorithm 1Foreground Object Selection
+Input: Foreground selection convex coeﬃcients 𝜶𝑡; In-image bounding box
+detections ℬ𝑖 ∈ℝ4,𝑖 ∈[1,𝑁].
+Output: Coarse object attention window 𝒢𝑡.
+Defaults: Bounding box over the entire image ℬ0.
+1: functionO BJECT S ELECT(𝜶𝑡,{ℬ0,… ℬ𝑁})
+2: {𝛼0𝑡, …  𝛼𝑁𝑡 } =𝜶𝑡 ∈ℝ𝑁+1;
+3: 𝒢𝑡 =∑𝑖 =0
+𝑁 𝛼𝑖𝑡 ℬ𝑖;
+4: return𝒢𝑡.
+5: endfunction
+Local attention window selection. Within each object window 𝒢𝑡, the agent
+further learns to sequentially shift its focus on different in-object features
+through a sequence of coarse-to-fine local attention windows 𝒲𝑡. In particular,
+given the coarse object window coordinates 𝑥𝑡
+𝒢,𝑦𝑡
+𝒢,𝑤𝑡
+𝒢,ℎ𝑡
+𝒢, the coordinates
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 23/31
+===== PAGE 24 =====
+(17)
+(18)
+𝒲𝑡 =𝑥𝑡ℒ,𝑦𝑡
+ℒ,𝑤𝑡ℒ,ℎ𝑡ℒ for the finer localized attention windows are computed using
+the Markov update function in Algorithm 2.
+Algorithm 2Markov Updates for Local Attention Window
+Input: Current coarse, local attention windows (𝒢𝑡,𝒲𝑡); Markovian bounding box
+reﬁnements Δ 𝒲𝑡.
+Output: Updated local attention window 𝒲𝑡+1.
+Defaults: 𝑤𝑚 𝑖 𝑛 =ℎ𝑚 𝑖 𝑛 =0.2.
+1: functionM ARKOV U PDATE(𝒲𝑡,𝒢𝑡,Δ 𝒲𝑡)
+2:
+3: 𝑥𝑡𝒢,𝑦𝑡
+𝒢,𝑤𝑡𝒢,ℎ𝑡𝒢 =𝒢𝑡;
+4: 𝑥𝑡ℒ,𝑦𝑡
+ℒ,𝑤𝑡ℒ,ℎ𝑡
+ℒ=𝒲𝑡;
+5: Δ 𝑥𝑡,Δ 𝑦𝑡,Δ 𝑤𝑡,Δ ℎ𝑡 =Δ 𝒲𝑡;
+6:
+7: 𝑥𝑡+1ℒ =𝑥𝑡+1
+𝒢 +(𝑥𝑡ℒ+Δ 𝑥𝑡)  𝑤𝑡+1
+𝒢 ;
+8: 𝑦𝑡+1
+ℒ =𝑦𝑡+1
+𝒢 +(𝑦𝑡
+ℒ+Δ 𝑦𝑡)  ℎ𝑡+1
+𝒢 ;
+9: 𝑤𝑡+1ℒ =(𝑚 𝑎 𝑥 (1−~𝑡,𝑤𝑚 𝑖 𝑛)+Δ 𝑤𝑡)  𝑤𝑡+1
+𝒢 ;
+10: ℎ𝑡+1ℒ =(𝑚 𝑎 𝑥 (1−~𝑡,ℎ𝑚 𝑖 𝑛)+Δ ℎ𝑡)  ℎ𝑡+1𝒢 ;
+11:
+12: 𝒲𝑡+1 =𝑥𝑡+1ℒ ,𝑦𝑡+1
+ℒ ,𝑤𝑡+1ℒ ,ℎ𝑡+1ℒ ;
+13: return𝒲𝑡+1.
+14:
+15: endfunction
+Brushstroke parameter adjustment. Finally, the coordinates of local attention
+window are used to modify the predicted brushstroke parameters 𝐚𝑡𝑙, so as
+constrain the painting agent to only draw within the localized attention
+window. This procedure can be expressed as,
+𝐚𝑡𝑙 ←P ARAM A DJUST (𝐚𝑡𝑙,𝒲𝑡).
+Assuming that 𝐚𝑡𝑙 at each timestep 𝑡, depicts the parameters of a quadratic Bézier
+curve huang2019learning; singh2021combining as follows,
+𝐚𝑡𝑙 =(𝑥0,𝑦0,𝑥1,𝑦1,𝑥2,𝑦2,𝑧0,𝑧2,𝑤0,𝑤2,𝑟,𝑔,𝑏),
+where the first 10 parameters depict stroke position, shape and transparency,
+while the last 3 parameters form the rgb representation for the stroke color. The
+parameter adjustment function is then implemented as per Algorithm 3.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 24/31
+===== PAGE 25 =====
+Algorithm 3Parameter Adjustment Function
+Input: Initial vectorized brushstroke prediction 𝐚𝑡𝑙; current local attention window
+coordinates 𝒲𝑡.
+Output: Modiﬁed brushstroke prediction vector 𝐚𝑡𝑙.
+1: functionP ARAM A DJUST(𝐚𝑡𝑙,𝒲𝑡)
+2:
+3: 𝑥0,𝑦0,𝑥1,𝑦1,𝑥2,𝑦2,𝑧0,𝑧2,𝑤0,𝑤2,𝑟,𝑔,𝑏=𝐚𝑡𝑙;
+4: 𝑥𝑡ℒ,𝑦𝑡ℒ,𝑤𝑡ℒ,ℎ𝑡
+ℒ=𝒲𝑡;
+5:
+6: 𝑥0 =𝑥𝑡ℒ+𝑥0⋅𝑤𝑡ℒ;
+7: 𝑦0 =𝑦𝑡
+ℒ+𝑦0⋅ℎ𝑡
+ℒ;
+8: 𝑥2 =𝑥𝑡ℒ+𝑥2⋅𝑤𝑡ℒ;
+9: 𝑦2 =𝑥𝑡ℒ+𝑦2⋅ℎ𝑡ℒ;
+10: 𝑤0 =𝑤0⋅𝑎 𝑣 𝑔 (𝑤𝑡ℒ,ℎ𝑡
+ℒ);
+11: 𝑤2 =𝑤2⋅𝑎 𝑣 𝑔 (𝑤𝑡ℒ,ℎ𝑡
+ℒ);
+12:
+13: 𝐚𝑡𝑙 =𝑥0,𝑦0,𝑥1,𝑦1,𝑥2,𝑦2,𝑧0,𝑧2,𝑤0,𝑤2,𝑟,𝑔,𝑏;
+14: return𝐚𝑡𝑙.
+15:
+16: endfunction
+C.2 Brushstroke Regularization
+The current works on autonomous painting systems are often limited to using
+(an almost) fixed brush stroke budget irrespective of the complexity of the
+target image. Experiments reveal that this not only reduces the efficiency of the
+generated painting sequence but also results in redundant / overlapping
+brushstroke patterns (refer main paper) which impart an unnatural painting
+style to the final agent.
+To address this, we propose an inference-time brushstroke regularization
+strategy which refines and removes redundancies from the initial brushstroke
+sequence predictions 𝐬𝑖 𝑛 𝑖 𝑡 to output the most efficient stroke decomposition 𝐬𝑝 𝑟 𝑒 𝑑
+for each test image. This regularization procedure can be summarized through
+Algorithm 4.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 25/31
+===== PAGE 26 =====
+Algorithm 4Brushstroke Regularization Function
+Input: A target image 𝐼; initial brushstroke sequence
+𝐬𝑖 𝑛 𝑖 𝑡 ={𝐚𝑡𝑙∣0≤𝑙 ≤𝐿−1,0≤𝑡 ≤𝑇/𝐿}.
+Output: Reﬁned brushstroke sequence 𝐬𝑝 𝑟 𝑒 𝑑.
+Defaults: Number of layers 𝐿; episode length 𝑇; number of iterations 𝑀,
+𝐶𝑖 𝑛 𝑖 𝑡 =𝐶0𝑙 =0 =B LANK C ANVAS;
+1: functionS TROKE R EG(𝐬𝑖 𝑛 𝑖 𝑡,𝐼):
+2: {𝐚𝑡𝑙∣0≤𝑙 ≤𝐿−1,0≤𝑡 ≤𝑇/𝐿} =𝐬𝑖 𝑛 𝑖 𝑡;
+3: 𝑥𝑡𝑙 ∼𝒩 (0,10−3) ∀𝑙,∀𝑡;
+4: for0≤𝑖 ≤𝑀do
+5: 𝛽𝑡
+𝑙 =S IGN (𝑥𝑡𝑙) ∀𝑡,𝑙;
+6:
+𝐶𝑜 𝑢 𝑡 =
+𝐿−1
+∑
+𝑙 =0
+𝑇/𝐿
+∑
+𝑡 =1
+𝐶𝑡𝑙 ⊙(1−𝛽𝑡
+𝑙  𝑆𝛼 (𝐚𝑡𝑙))
++ 𝛽𝑡
+𝑙  𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡𝑙);
+7: ℒ𝑡 𝑜 𝑡 𝑎 𝑙 =ℒ2 (𝐼,𝐶𝑜 𝑢 𝑡)+𝛾  ∑𝑙 =0
+𝐿−1∑𝑡 =1
+𝑇/𝐿‖𝛽𝑡
+𝑙‖1;
+8:
+𝑎𝑡𝑙 ←𝑎𝑡𝑙 − ∂ℒ𝑡 𝑜 𝑡 𝑎 𝑙
+∂𝑎𝑡𝑙 ∀𝑡,𝑙;
+9:
+𝑥𝑡𝑙 ←𝑥𝑡𝑙 − ∂ℒ𝑡 𝑜 𝑡 𝑎 𝑙
+∂𝑥𝑡𝑙 ∀𝑡,𝑙;
+10: endfor
+11: 𝐬𝑝 𝑟 𝑒 𝑑 ={𝛽𝑡
+𝑙 ⋅𝐚𝑡𝑙∣0≤𝑙 ≤𝐿−1,0≤𝑡 ≤𝑇/𝐿};
+12: return𝐬𝑝 𝑟 𝑒 𝑑.
+13: endfunction
+C.3 Overall Inference Algorithm
+The overall inference algorithm for the Intelli-paint pipeline can now be
+summarized as per Algorithm 5.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 26/31
+===== PAGE 27 =====
+Algorithm 5Inference Algorithm for Intelli-Paint
+Input: A target image 𝐼; image-saliency map 𝒮𝐼; number of layers 𝐿; painting episode
+length 𝑇.
+Required: RL-based sequential planner POLICY;
+1: 𝒲0 =𝑥0ℒ,𝑦0
+ℒ,𝑤0ℒ,ℎ0
+ℒ=(0,0,1,1);
+2: 𝐶𝑖 𝑛 𝑖 𝑡 =𝐶0𝑙 =0 =B LANK C ANVAS;
+3: for0≤𝑙 ≤𝐿−1do
+4: for0≤𝑡 ≤𝑇/𝐿do
+5: 𝑠𝑡 =(𝐼,𝐶𝑡𝑙,𝒢𝑡,𝒲𝑡,𝒮𝐼,𝑙);
+6: 𝐚𝑡𝑙,𝜶𝒕,Δ 𝒲𝑡 =P OLICY(𝑠𝑡);
+7: 𝒢𝑡 =O BJECT S ELECT (𝜶𝑡,{ℬ0,… ℬ𝑁});
+8: 𝒲𝑡 =M ARKOV U PDATE (𝒢𝑡,𝒲𝑡−1,Δ 𝒲𝑡);
+9: 𝐚𝑡𝑙 ←P ARAM A DJUST (𝐚𝑡𝑙,𝒲𝑡);
+10: 𝐶𝑡+1𝑙 =𝐶𝑡𝑙 ⊙(1−𝑆𝛼 (𝐚𝑡𝑙))+𝑆𝑐 𝑜 𝑙 𝑜 𝑟 (𝐚𝑡𝑙);
+11: endfor
+12: endfor
+13: 𝐬𝑖 𝑛 𝑖 𝑡 ={𝐚𝑡𝑙∣0≤𝑙 ≤𝐿−1,0≤𝑡 ≤𝑇/𝐿};
+14: 𝐬𝑝 𝑟 𝑒 𝑑 =S TROKE R EG(𝐬𝑖 𝑛 𝑖 𝑡,𝐼𝑡 𝑎 𝑟 𝑔 𝑒 𝑡);
+15: return𝐬𝑝 𝑟 𝑒 𝑑.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 27/31
+===== PAGE 28 =====
+Appendix D Human User Study
+Figure 8:Human User Study Interface. Each user is shown two painting sequences (gif
+format) and asked to select the one which would be most interpretable by actual human
+artists.
+In this section, we provide details about the human data collection process
+which is used to quantitatively demonstrate the human-likeliness of our
+approach as compared to previous state of the art huang2019learning;
+singh2021combining; zou2021stylized; liu2021paint.
+Basic Setup. The user-study was conducted across 50 unique Amazon
+Mechanical Turk crowston2012amazon subjects wherein each human
+participant is shown a series of paired painting sequences comparing our
+method with previous works. For each pair, the human subject is then asked to
+select the painting sequence which best resembles the human painting style.
+Each painting sequence is presented as a gif image with a total duration of 10
+seconds. Fig. 8 illustrates the basic interface setup for the user-study.
+Filtering process. Since the choice on human-likeliness of a painting sequence
+is subjective, we found that unfiltered collection of data from Amazon M-turk
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 28/31
+===== PAGE 29 =====
+can lead to quite noisy responses, wherein many users simply select the
+responses at random in order to quickly collect the assignment reward. To
+address this, we take the following measures for avoiding data collection noise.
+First, we limit the data collection to human subjects with a HIT rate
+crowston2012amazon greater than 90%. In order to further refine the quality of
+collected data, we also limit the responses to users having a bachelors degree or
+equivalent. Furthermore, we intentionally use a repeated seed comparison for
+each sequence of paired comparisons shown to a particular user. Responses of
+users who respond differently to this repeated comparison are discarded while
+reporting the final results in the main paper.
+Appendix E Inference Time Analysis
+While the ability to closely mimic the human artistic creation process
+determines the practical merits of a stroke based rendering approach
+huang2019learning; zou2021stylized; liu2021paint over pixel-based image
+generation methods, the time taken to generate the same can help us better
+understand the practical usability of a method. In this section, we provide an
+analysis comparing the inference time required for our method with previous
+works huang2019learning; zou2021stylized; singh2021combining; liu2021paint.
+In order to facilitate a better understanding for inference-time requirements of
+our approach we define two different variations of our method.
+Ours (with StrokeReg). This indicates the default Intelli-paint pipeline
+consisting of a Sequential Planner for human-like painting sequence
+initialization and Stroke Regularizer for predicting the most efficient
+brushstroke decomposition for each test image 𝐼.
+Ours (w/o StrokeReg). We note that since the stroke regularization process is
+based on performing gradient descent across the entire painting trajectory, it is
+considerably slower than the Sequential Planner agent. Also, since performing
+brushstroke compression may not be necessary for each potential application,
+we define a variant of Intelli-paint which only relies on sequential predictions
+from the Sequential Planner to learn a human-like painting process.
+Results comparing inference time between different methods are shown in
+Table 3. All values are computed using the official implementations from
+respective authors huang2019learning; singh2021combining; zou2021stylized;
+liu2021paint on a single Nvidia V100 GPU. We observe that since our method
+requires significantly fewer brushstrokes than Paint Transformer liu2021paint,
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 29/31
+===== PAGE 30 =====
+RLhuang2019learning and Semantic-RL singh2021combining, it performs faster
+than the above when not using stroke regularization. Similarly, while both Ours
+(with StrokeReg) and Optim zou2021stylized require gradient descent based
+optimization, our method is considerably faster since it relies on high-quality
+initializations from the sequential planner agent. In contrast, Optim
+zou2021stylized typically begins with a random or heuristic-based brushstroke
+initialization which takes the gradient descent optimization longer to converge.
+Method Inference Time (s)
+RL huang2019learning 2.317 s
+Semantic-RL singh2021combining 2.631 s
+Optim zou2021stylized 416.7 s
+Transformer liu2021paint 1.154 s
+Ours (with StrokeReg) 72.21 s
+Ours (w/o StrokeReg) 0.948 s
+Table 3:Method comparison w.r.t. inference time. We observe that since our method
+requires significantly fewer brushstrokes than Paint Transformer liu2021paint, RL
+huang2019learning and Semantic-RL singh2021combining, it performs faster than the
+above when not using stroke regularization. Similarly, while both Ours (with StrokeReg)
+and Optim zou2021stylized require gradient descent based optimization, our method is
+considerably faster since it relies on high-quality initializations from the sequential
+planner agent. In contrast, Optim zou2021stylized typically begins with a random or
+heuristic-based brushstroke initialization which takes the gradient descent optimization
+longer to converge.
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 30/31
+===== PAGE 31 =====
+🌙🌙
+◄
+ Feeling
+lucky?
+Conversion
+report (W)
+Report
+an issue (https://github.co
+m/dginev/ar5iv/issues/ne
+w?template=improve-articl
+e--arxiv-id-.md&title=Impro
+ve+article+2112.08930)
+View original
+on arXiv (https://arxiv.org/
+abs/2112.08930)
+►
+Copyright (https://arxiv.org/help/license)
+Privacy Policy (https://arxiv.org/help/policies/privacy_policy)
+Generated by LT
+  (http://dlmf.nist.gov/LaTeXML/) oxideAEXML
+2026/8/17 21:30 [2112.08930] Intelli-Paint ：迈向开发类⼈绘画剂
+https://ar5iv.labs.arxiv.org/html/2112.08930 31/31

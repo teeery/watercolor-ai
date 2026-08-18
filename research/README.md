@@ -27,6 +27,18 @@
 | npar2017-recoloring-abstract.html / -citation.html / -bitstream.bin | Aharoni-Mack et al. 2017 *Pigment-Based Recoloring of Watercolor Paintings*（NPAR'17）——EG 库需授权无 PDF；摘要已录，bitstream 为失败下载残留 | 仅本地 |
 | vanlaerhoven2005-abstract.html | Van Laerhoven & Van Reeth 2005 *Real-time simulation of watery paint*——无公开全文，摘要页 | 仅本地 |
 
+## papers/agent — 教机器作画的 agent 论文
+
+| 文件 | 内容 | 状态 |
+|---|---|---|
+| [2112.08930] Intelli-Paint：迈向开发类人绘画剂.pdf | Intelli-Paint: Towards Developing Human-like Painting Agents（ECCV 2022；ar5iv 中文机翻打印版，31 页含补充材料） | 提取全文 `probes/ip_text.txt` 进 git，PDF 仅本地 |
+| 3680528.3687574.pdf | Inverse Painting: Reconstructing The Painting Process（SIGGRAPH Asia 2024） | 提取全文 `probes/invpaint_text.txt` 进 git，PDF 仅本地 |
+| huang2019-learning-to-paint.pdf / .txt | Huang et al. 2019 *Learning to Paint with Model-based Deep Reinforcement Learning*（ICCV'19） | txt 进 git，PDF 仅本地 |
+| zou2021-stylized-neural-painting.pdf / .txt | Zou et al. 2021 *Stylized Neural Painting*（CVPR'21） | 同上 |
+| liu2026-differentiable-stroke-planning.pdf / .txt | Liu et al. 2026 *Differentiable Stroke Planning with Dual Parameterization for Efficient and High-Fidelity Painting Creation*（CVPR'26） | 同上 |
+
+精读与对比见 `docs/predecessors-agents.md`（册一 Intelli-Paint、册二 Inverse Painting）。
+
 ## data — 标准数据
 
 | 文件 | 内容 |

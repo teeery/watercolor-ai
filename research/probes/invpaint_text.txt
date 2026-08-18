@@ -1,0 +1,912 @@
+
+===== PAGE 1 =====
+Inverse Painting: Reconstructing The Painting Process
+BOWEI CHEN, University of Washington, United States of America
+YIFAN WANG,University of Washington, United States of America
+BRIAN CURLESS, University of Washington, United States of America
+IRA KEMELMACHER-SHLIZERMAN, University of Washington, United States of America
+STEVEN M. SEITZ, University of Washington, United States of America
+Generated Painting Process (Sampled Keyframes)
+Input
+Input
+Fig. 1. We present Inverse Painting, a diffusion-based method to generate time-lapse videos of the painting process from a target painting. By training on
+acrylic paintings with a similar artistic style to that of the first example in this figure, our method is capable of handling a diverse range of styles (e.g., oil
+painting, above bottom). The resulting videos resemble how human artists typically paint, for example, from back to front, focusing on semantic objects or
+regions at a time, and employing layering techniques. Image courtesy Catherine Kay Greenup.
+Given an input painting, we reconstruct a time-lapse video of how it may
+have been painted. We formulate this as an autoregressive image generation
+problem, in which an initially blank “canvas” is iteratively updated. The
+model learns from real artists by training on many painting videos. Our
+Authors’ Contact Information: Bowei Chen, University of Washington, United States of
+America, boweiche@cs.washington.edu; Yifan Wang, University of Washington, United
+States of America, yifan1@cs.washington.edu; Brian Curless, University of Washington,
+United States of America, curless@cs.washington.edu; Ira Kemelmacher-Shlizerman,
+University of Washington, United States of America, kemelmi@cs.washington.edu;
+Steven M. Seitz, University of Washington, United States of America, seitz@cs.
+washington.edu.
+This work is licensed under a Creative Commons Attribution International 4.0 License.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan
+© 2024 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-1131-2/24/12
+https://doi.org/10.1145/3680528.3687574
+approach incorporates text and region understanding to define a set of
+painting “instructions” and updates the canvas with a novel diffusion-based
+renderer. The method extrapolates beyond the limited, acrylic style paintings
+on which it has been trained, showing plausible results for a wide range of
+artistic styles and genres.
+CCS Concepts: • Computing methodologies→ Image processing.
+Additional Key Words and Phrases: Painting Process Reconstruction, Inverse
+Painting, Diffusion Models
+ACM Reference Format:
+Bowei Chen, Yifan Wang, Brian Curless, Ira Kemelmacher-Shlizerman, and Steven
+M. Seitz. 2024. Inverse Painting: Reconstructing The Painting Process. In
+SIGGRAPH Asia 2024 Conference Papers (SA Conference Papers ’24), De-
+cember 03–06, 2024, Tokyo, Japan. ACM, New York, NY, USA, 11 pages.
+https://doi.org/10.1145/3680528.3687574
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 2 =====
+2 • Chen, et al
+Fig. 2. How a real artist paints. Time lapse from a real painting video, representative of the training painting style. The artist uses a back-to-front order with
+layering techniques, starting with the sky, then clouds, mountains, and other elements. The artist typically focuses on one semantic region at a time.
+1 Introduction
+When we look at a painting, we see only the final outcome of the
+artist’s creative process. Leonardo da Vinci worked on the Mona Lisa
+for 16 years – it would be fascinating to see a time-lapse video of the
+Mona Lisa’s creation. While no such video exists for Leonardo, there
+are many videos online in which artists have filmed the creation of
+entire paintings. These visualizations are fascinating in the way they
+show hidden layers, structures, and provide insight into the artistic
+creation process. While such visualizations currently exist for only
+a tiny subset of paintings in the world, we propose to train machine
+learning models on such data to predict how a wide variety of other
+paintings could have been made. While the resulting videos should
+not be treated as accurate reconstructions of any specific painting’s
+creation, they are nonetheless intriguing and insightful as plausible
+reconstructions, in capturing rules that many painters employ, such
+as layering, back-to-front-ordering, and focusing on objects/regions
+in stages [Bob 1987; Dozier 2007]. While our approach was trained
+only on acrylic paintings of landscapes, as shown in Fig. 2, we
+believe that future models could produce plausible visualizations
+for almost any piece of art.
+Previous approaches [de Guevara et al. 2023; Ganin et al. 2018;
+Hu et al. 2023b; Huang et al. 2019; Liu et al. 2021; Singh et al. 2021;
+Singh and Zheng 2021; Zou et al. 2021] rely on hand-crafted painting
+principles instead of learning them from the real painting processes.
+The most relevant work, Timecraft [Zhao et al. 2020], generates time-
+lapse videos by learning from actual painting videos. However, it
+operates only on low-resolution (50x50 pixels) patches and therefore
+lacks holistic semantic context.
+We define this task as an autoregressive image generation prob-
+lem. It begins with a blank canvas, which is iteratively updated
+based on its current state and the target painting. This sequential
+updating continues until the artwork is completed. To implement
+this, one possible approach, similar to Timecraft [Zhao et al. 2020], is
+to train a network that takes the current and target images as inputs
+and outputs the updated canvas at each step. However, we’ve found
+that a purely pixel-based approach struggles to produce reasonable
+results in practice, and thus we incorporate additional semantic
+analysis.
+In particular, we draw inspiration from the techniques used by
+human artists. Consider the second painting in Fig. 1. Initially, an
+artist decides on the semantic content to depict – such as the sky –
+and selects appropriate areas of the canvas for this content, such as
+the upper portion. Subsequently, the artist applies specific paints to
+these regions, using blue for the sky, while leaving contents such
+as clouds for later stages. Building on this observation, we design a
+two-stage method that decomposes the instruction generation and
+canvas rendering. In the first stage, we generate a textual instruction
+and a corresponding region mask from the current and target images.
+The textual instruction provides high-level guidance on the order
+of painting, and its corresponding region mask directs the focus
+area. In the second stage, a diffusion-based renderer is proposed to
+leverage the textual instruction and region mask, in conjunction
+with the current and target images, to effectively update the canvas.
+Our method can handle in-the-wild landscape paintings across
+diverse artistic styles (e.g., Impressionism and Realism) and color
+themes, ranging from dark to bright. We demonstrate that our ap-
+proach surpasses current state-of-the-art methods in creating high-
+quality, human-like painting videos, supported by both qualitative
+and quantitative results, as well as human studies.
+2 Related Work
+2.1 Painting Process Generation
+Stroke-based rendering is a computer graphics technique that cre-
+ates non-photorealistic images by placing discrete elements like
+brush strokes instead of traditional pixels [Frans and Cheng 2018;
+Fu et al. 2011; Ganin et al. 2018; Ha and Eck 2017; Haeberli 1990;
+Hertzmann 1998; Jia et al. 2019; Litwinowicz 1997; Liu et al. 2023b;
+Tang et al. 2017; Xie et al. 2013]. The painting process can be ob-
+tained by visualizing the sequence of element placement. However,
+many studies mainly focus on generating images in various artistic
+styles [Kotovenko et al. 2021; Litwinowicz 1997; Liu et al . 2023b;
+Xie et al. 2013; Zou et al. 2021]. They often overlook the order and
+position of brush stroke placement, resulting in a non-human-like
+painting process. To produce a more human-like painting process,
+recent work constrains the placement of brush strokes based on
+predefined painting principles using techniques such as reinforce-
+ment learning (RL) [de Guevara et al. 2023; Ganin et al. 2018; Hu
+et al. 2023b; Huang et al. 2019; Singh et al. 2021; Singh and Zheng
+2021; Zou et al. 2021] or Transformers [Liu et al. 2021]. For exam-
+ple, [Liu et al. 2021] developed a Transformer-based [Vaswani et al.
+2017] feed-forward painter that applies a coarse-to-fine painting
+strategy. Initially, the painter works from a blurry (downsampled)
+version of the target painting, progressively refining the canvas
+using higher-resolution versions until the painting is complete.
+However, these techniques face two limitations: (1) They rely on
+hand-crafted painting principles that do not accurately mimic the
+actual human painting process, whereas our method learns from
+real-world painting data. (2) Their parameterized brush strokes fail
+to capture the full variation observed in real painting processes and
+result in an approximate version of the target painting. In contrast,
+our diffusion-based renderer effectively handles these variations
+and recreates the target painting more accurately.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 3 =====
+Inverse Painting: Reconstructing The Painting Process • 3
+Another stream of work, pixel-based generation, generates the
+painting process by directly updating pixels on the canvas [Leiser
+and Schlippe 2021; Wang et al. 2024; Zhao et al. 2020]. [Wang et al.
+2024] used a Vision Transformer (ViT) [Dosovitskiy et al . 2020]
+to map a target image to a series of 9 intermediate images via a
+non-autoregressive approach. However, this method is specifically
+tailored for traditional Chinese painting. The work most related
+to ours is Timecraft [Zhao et al. 2020], which generates time-lapse
+videos from paintings by learning from actual painting videos. How-
+ever, their method is limited to low-resolution (50x50 pixels) crops,
+neglecting the full artwork’s context. Our method handles full paint-
+ings with higher resolution.
+2.2 Diffusion Models
+Diffusion models have recently demonstrated their success in vari-
+ous tasks such as text-to-image [Rassin et al. 2022; Rombach et al.
+2022; Saharia et al. 2022], image-to-image translation [Chen et al.
+2023; Yang et al. 2022], and image-to-video synthesis [Blattmann
+et al. 2023; Hu et al . 2023a]. [Blattmann et al . 2023] developed a
+latent video diffusion model capable of generating videos from an
+initial frame. [Hu et al. 2023a] proposed a diffusion framework to
+synthesize character animation videos from a reference image and
+a sequence of target poses. This framework includes a component
+called ReferenceNet to inject features from the reference image
+directly into the denoising UNet of the diffusion model. In this pa-
+per, we adopt the ReferenceNet to inject the target image into our
+diffusion-based renderer.
+3 Our Method
+In a real painting process, an artist continually applies changes to the
+current state of the canvas. Our method formulates this process as an
+autoregressive image generation problem. Given a target painting𝐼𝑇
+as input, we reconstruct a time-lapse video consisting of𝑇 keyframes
+{ ˆ𝐼1,..., ˆ𝐼𝑇}, starting from a blank canvas𝐼0 progressively towards the
+target𝐼𝑇 . Each keyframe transition represents a fixed time interval,
+a feature of time-lapse videos. We start by presenting a one-step
+canvas rendering approach for each canvas update and discussing its
+limitations in Sec. 3.1. This motivates our two-stage design, which
+incorporates additional semantic analysis. The details of the training
+process are described in Sec. 3.2 and 3.3, while the testing is covered
+in Sec. 3.4. Fig. 3 shows an overview of the method.
+3.1 One-Stage Canvas Rendering Approach
+For clarity, we will refer to step𝑡− 1 as the current step and step𝑡 as
+the next step. The goal is to render next image ˆ𝐼𝑡 based on ˆ𝐼𝑡−1 and
+𝐼𝑇 . We approach this as an image translation problem, and design a
+diffusion-based renderer based on the denoising UNet𝑔𝑢 from Stable
+Diffusion [Rombach et al . 2022]. This renderer leverages image
+priors to enhance image quality by initializing𝑔𝑢 with pretrained
+weights from Stable Diffusion.
+We train this diffusion-based renderer with inputs{𝐼𝑡−1,𝐼𝑇, Δ𝑡},
+where𝐼𝑡−1 is the ground-truth (GT) current image, and Δ𝑡 is the
+actual time interval between𝐼𝑡−1 and GT next image𝐼𝑡 . By incor-
+porating Δ𝑡 , we model the time spent on each update in the paint-
+ing process, enabling the generation of videos with time-informed
+keyframes during testing. The output ˆ𝐼𝑡 , which predicts the next
+image, is supervised using𝐼𝑡 . For supervision, we start with a clean
+latent𝑧0 =𝐸𝐼(𝐼𝑡), where𝐸𝐼 is the pretrained VAE encoder in Stable
+Diffusion. We then apply the forward process to produce a noisy
+latent𝑧𝑠 = 𝛽𝑠𝑧0+( 1− 𝛽𝑠)𝜖, where 𝑠 denotes a randomly sam-
+pled denoising timestep,𝜖 represents Gaussian noise, and 𝛽𝑠 is a
+weighting parameter dependent on𝑠. The denoising UNet𝑔𝑢 is then
+employed to denoise𝑧𝑠. We update the parameters of the renderer
+by minimizing the following loss function:
+L = E𝑠,𝑧0,𝜖||𝑔𝑢(𝑧𝑠,𝑐,𝑠)− 𝜖|| 2
+2, (1)
+where𝑐 represents the conditional signals of𝑔𝑢, consisting of fea-
+tures of{𝐼𝑇,𝐼𝑡−1, Δ𝑡}. We extract these features using ReferenceNet
+𝑔𝑟 , feature encoder 𝑔𝑓 , time encoder 𝑔𝑡 and next CLIP generator 𝑔𝑐.
+During the training, we jointly update𝑔𝑢,𝑔𝑟 ,𝑔𝑓 ,𝑔𝑡 , and𝑔𝑐 using
+Eq.1. Please refer to the gray box “Training: Canvas Rendering” in
+Fig. 3 (excluding the mask and text in the purple box).
+For ReferenceNet𝑔𝑟 , the target image 𝐼𝑇 is integrated into 𝑔𝑢
+through𝑔𝑟 , as introduced in [Hu et al . 2023a]. The ReferenceNet
+𝑔𝑟 utilizes the same UNet architecture and pretrained weights (for
+initialization) from Stable Diffusion [Rombach et al. 2022], ensuring
+feature extraction within the same feature space as𝑔𝑢. It takes the
+target image𝐼𝑇 as input, and extracts intermediate feature maps
+from its self-attention layers. These feature maps are then fused
+into𝑔𝑢 by concatenating them with corresponding feature maps
+from the same layers in𝑔𝑢. We opt for the design of ReferenceNet
+because it fuses features more effectively than other designs, such
+as ControlNet [Zhang et al. 2023], in practice.
+For Feature encoder 𝑔𝑓 , it consists of a shallow convolutional
+neural network (CNN) to encode 𝐼𝑡−1, denoted as 𝑔𝑓(𝐼𝑡−1). We
+found that this shallow network effectively learns features of𝐼𝑡−1
+while saving computational time. The encoded feature map has the
+same spatial resolution of𝑧𝑠 (noisy latent of𝐼𝑡 ), and is concatenated
+with𝑧𝑠 along channel dimension as spatial input to the𝑔𝑢 during
+training. The first layer of𝑔𝑢 is modified to adjust to the new channel
+dimension.
+For time encoder 𝑔𝑡 , it applies positional encoding – same as
+that used in NeRF [Mildenhall et al . 2021] – to the Δ𝑡 , followed
+by a multi-layer perceptron (MLP) that maps the positional en-
+coding feature dimension from 21 to 768. This results in the time
+embeddings𝑔𝑡(Δ𝑡). The advantage of positional encoding lies in
+its ability to adapt to varying Δ𝑡 across different training samples.
+This continuous encoding enhances interpolation capabilities, use-
+ful for handling specific time intervals during testing. Moreover, to
+provide additional painting guidance for𝑔𝑢, we introduce the next
+CLIP generator𝑔𝑐, implemented as an MLP. This module inputs the
+CLIP embeddings of 𝐼𝑡−1 and𝐼𝑇 , and outputs the predicted CLIP
+feature of the next image. This predicted CLIP feature and𝑔𝑡(Δ𝑡)
+are concatenated and fed into the cross-attention layers of𝑔𝑢.
+Fig. 5 (b) illustrates the results of using this model without in-
+corporating Δ𝑡 . In this scenario, significant content is added in a
+single update, which does not effectively represent the progressive
+nature of the painting process. When Δ𝑡 is included through 𝑔𝑡
+(Fig. 5 (c)), the new content volume per update is better controlled;
+however, this approach still results in unnatural rendering of moun-
+tains, as the yellow layers prematurely appear before the completion
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 4 =====
+4 • Chen, et al
+Training:InstructionGeneration
+Target
+GTCurrent
+GeneratedText:“Grass”
+GTText:“Grass”
+GeneratedMask
+Training:CanvasRendering
+Difference MaskGTTime Interval:15s
+QuestionText:Whattopaintnext?Loss
+ GTMaskLoss
+TargetGTCurrentGTTimeInterval:15s
+NoisyGTNext
+ DenoisedGTNext
+Testing:Stept-1
+TextInstructionGenerator
+GeneratedCurrentTarget
+GeneratedText:“Grass”
+MaskInstructionGenerator
+CanvasRendering
+GeneratedMask
+GeneratedNext
+TimeInterval:20s
+TextInstructionGenerator
+<latexit sha1_base64="qJgdpmqdxZeZysfEd5lq5+pna18=">AAAB73icbVBNS8NAEN3Ur1q/qh69LBbBU0lE1GPRi8cK9gPaUDbbSbt0s4m7E7GE/gkvHhTx6t/x5r9x2+agrQ8GHu/NMDMvSKQw6LrfTmFldW19o7hZ2tre2d0r7x80TZxqDg0ey1i3A2ZACgUNFCihnWhgUSChFYxupn7rEbQRsbrHcQJ+xAZKhIIztFJ70MsQnnDSK1fcqjsDXSZeTiokR71X/ur2Y55GoJBLZkzHcxP0M6ZRcAmTUjc1kDA+YgPoWKpYBMbPZvdO6IlV+jSMtS2FdKb+nshYZMw4CmxnxHBoFr2p+J/XSTG88jOhkhRB8fmiMJUUYzp9nvaFBo5ybAnjWthbKR8yzTjaiEo2BG/x5WXSPKt6F9Xzu/NK7TqPo0iOyDE5JR65JDVyS+qkQTiR5Jm8kjfnwXlx3p2PeWvByWcOyR84nz+UaJBW</latexit>
+gtext
+MaskInstructionGenerator
+<latexit sha1_base64="1vSAb496dWUblX5y5YVTfnE82KM=">AAAB73icbVBNSwMxEJ3Ur1q/qh69BIvgqexKUY9FLx4r2A9ol5JNs21okl2TrFCW/gkvHhTx6t/x5r8xbfegrQ8GHu/NMDMvTAQ31vO+UWFtfWNzq7hd2tnd2z8oHx61TJxqypo0FrHuhMQwwRVrWm4F6ySaERkK1g7HtzO//cS04bF6sJOEBZIMFY84JdZJnWE/k8SMp/1yxat6c+BV4uekAjka/fJXbxDTVDJlqSDGdH0vsUFGtOVUsGmplxqWEDomQ9Z1VBHJTJDN753iM6cMcBRrV8riufp7IiPSmIkMXackdmSWvZn4n9dNbXQdZFwlqWWKLhZFqcA2xrPn8YBrRq2YOEKo5u5WTEdEE2pdRCUXgr/88ippXVT9y2rtvlap3+RxFOEETuEcfLiCOtxBA5pAQcAzvMIbekQv6B19LFoLKJ85hj9Anz9uSZA9</latexit>
+gmask
+NextCLIPGeneratorReferenceNet FeatureExtractor
+<latexit sha1_base64="OjdJAtArf4l4nlO2fVuA9f1fqeg=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2k3TpZhN2N0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekAqujet+O4W19Y3NreJ2aWd3b/+gfHjU0kmmGDZZIhLVCahGwSU2DTcCO6lCGgcC28Hodua3n1BpnshHM07Rj2kkecgZNVZ6iPqqX664VXcOskq8nFQgR6Nf/uoNEpbFKA0TVOuu56bGn1BlOBM4LfUyjSllIxph11JJY9T+ZH7qlJxZZUDCRNmShszV3xMTGms9jgPbGVMz1MveTPzP62YmvPYnXKaZQckWi8JMEJOQ2d9kwBUyI8aWUKa4vZWwIVWUGZtOyYbgLb+8SloXVe+yWruvVeo3eRxFOIFTOAcPrqAOd9CAJjCI4Ble4c0Rzovz7nwsWgtOPnMMf+B8/gBXPI3Z</latexit>
+gr
+<latexit sha1_base64="Oh5Y7aiO9Xk2DbGSbBE8x36j6as=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2m3TpZhN2J0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekEph0HW/ncLa+sbmVnG7tLO7t39QPjxqmSTTjDdZIhPdCajhUijeRIGSd1LNaRxI3g5GtzO//cS1EYl6xHHK/ZhGSoSCUbTSQ9QP++WKW3XnIKvEy0kFcjT65a/eIGFZzBUySY3pem6K/oRqFEzyaamXGZ5SNqIR71qqaMyNP5mfOiVnVhmQMNG2FJK5+ntiQmNjxnFgO2OKQ7PszcT/vG6G4bU/ESrNkCu2WBRmkmBCZn+TgdCcoRxbQpkW9lbChlRThjadkg3BW355lbQuqt5ltXZfq9Rv8jiKcAKncA4eXEEd7qABTWAQwTO8wpsjnRfn3flYtBacfOYY/sD5/AFFDI3N</latexit>
+gf
+<latexit sha1_base64="dv4UGCdJ7D/u6FvfDZ/n4rJmtmw=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2m3TpZhN2J0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekEph0HW/ncLa+sbmVnG7tLO7t39QPjxqmSTTjDdZIhPdCajhUijeRIGSd1LNaRxI3g5GtzO//cS1EYl6xHHK/ZhGSoSCUbTSQ9Rn/XLFrbpzkFXi5aQCORr98ldvkLAs5gqZpMZ0PTdFf0I1Cib5tNTLDE8pG9GIdy1VNObGn8xPnZIzqwxImGhbCslc/T0xobEx4ziwnTHFoVn2ZuJ/XjfD8NqfCJVmyBVbLAozSTAhs7/JQGjOUI4toUwLeythQ6opQ5tOyYbgLb+8SloXVe+yWruvVeo3eRxFOIFTOAcPrqAOd9CAJjCI4Ble4c2Rzovz7nwsWgtOPnMMf+B8/gBAgI3K</latexit>
+gc
+DenoisingUNet
+<latexit sha1_base64="SVyf5bWtLmH8o+Tlmhaq96rnqxE=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2k3TpZhN2N0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekAqujet+O4W19Y3NreJ2aWd3b/+gfHjU0kmmGDZZIhLVCahGwSU2DTcCO6lCGgcC28Hodua3n1BpnshHM07Rj2kkecgZNVZ6iPpZv1xxq+4cZJV4OalAjka//NUbJCyLURomqNZdz02NP6HKcCZwWuplGlPKRjTCrqWSxqj9yfzUKTmzyoCEibIlDZmrvycmNNZ6HAe2M6ZmqJe9mfif181MeO1PuEwzg5ItFoWZICYhs7/JgCtkRowtoUxxeythQ6ooMzadkg3BW355lbQuqt5ltXZfq9Rv8jiKcAKncA4eXEEd7qABTWAQwTO8wpsjnBfn3flYtBacfOYY/sD5/AFbyI3c</latexit>
+gu
+GTMask
+GTText:“Grass”
+TimeEncoder
+<latexit sha1_base64="kzIO8UpufaahOXebUBLO6k1fdOw=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2m3TpZhN2J0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekEph0HW/ncLa+sbmVnG7tLO7t39QPjxqmSTTjDdZIhPdCajhUijeRIGSd1LNaRxI3g5GtzO//cS1EYl6xHHK/ZhGSoSCUbTSQ9THfrniVt05yCrxclKBHI1++as3SFgWc4VMUmO6npuiP6EaBZN8WuplhqeUjWjEu5YqGnPjT+anTsmZVQYkTLQthWSu/p6Y0NiYcRzYzpji0Cx7M/E/r5theO1PhEoz5IotFoWZJJiQ2d9kIDRnKMeWUKaFvZWwIdWUoU2nZEPwll9eJa2LqndZrd3XKvWbPI4inMApnIMHV1CHO2hAExhE8Ayv8OZI58V5dz4WrQUnnzmGP3A+fwBaRI3b</latexit>
+gt
+TimeEncoder
+TimeInterval:20s
+<latexit sha1_base64="kzIO8UpufaahOXebUBLO6k1fdOw=">AAAB6nicbVBNS8NAEJ3Ur1q/qh69LBbBU0mkqMeiF48V7Qe0oWy2m3TpZhN2J0Ip/QlePCji1V/kzX/jts1BWx8MPN6bYWZekEph0HW/ncLa+sbmVnG7tLO7t39QPjxqmSTTjDdZIhPdCajhUijeRIGSd1LNaRxI3g5GtzO//cS1EYl6xHHK/ZhGSoSCUbTSQ9THfrniVt05yCrxclKBHI1++as3SFgWc4VMUmO6npuiP6EaBZN8WuplhqeUjWjEu5YqGnPjT+anTsmZVQYkTLQthWSu/p6Y0NiYcRzYzpji0Cx7M/E/r5theO1PhEoz5IotFoWZJJiQ2d9kIDRnKMeWUKaFvZWwIdWUoU2nZEPwll9eJa2LqndZrd3XKvWbPI4inMApnIMHV1CHO2hAExhE8Ayv8OZI58V5dz4WrQUnnzmGP3A+fwBaRI3b</latexit>
+gt
+Fig. 3. Method overview. The training has two stages. The instruction generation stage (left two gray boxes) includes the text instruction generator (green)
+and the mask instruction generator (light orange). These generators produce the text and mask instructions essential for updating the canvas in the next stage.
+The second stage is canvas rendering (third gray box), where a diffusion-based renderer generates the next image based on multiple conditional signals, such
+as text and mask instructions. Omitting the text and mask (purple boxes) yields the one-stage method described in Sec. 3.1. To simplify the figure, we omit the
+VAE encoder, CLIP encoder, and text encoder. During testing at step𝑡− 1 (last gray box), we first generate a text instruction (green arrows), which is then
+used to create a region mask (orange arrows). Both are then provided to the canvas rendering stage to produce the next image (blue arrows). Image courtesy
+Catherine Kay Greenup.
+of the green mountain base. This indicates that a purely pixel-based
+network struggles to fully capture the semantics of the painting,
+prompting the need for more explicit semantic controls.
+3.2 Training: Instruction Generation
+To address the aforementioned issues of the purely pixel-based
+method, we draw inspiration from typical artistic practices, where
+artists decide what to paint and where, then apply paint accordingly.
+Based on this observation, we propose a two-stage method (Fig. 3)
+where we first generate text and mask instructions as semantic
+guidance. These instructions are then used to steer the diffusion-
+based renderer. In this section, we describe the training of a text
+and mask generator. These two generators are used to produce two
+types of instructions for each canvas update: a text instruction ˆ𝑝𝑡 ,
+describes what semantic content to paint, and a region mask ˆ𝑀𝑡 ,
+specifies the focus regions corresponding to the text instruction.
+3.2.1 Text Instruction Generator. Like an artist who envisions a
+target image and compares it to the current state of the work to de-
+cide what to paint next, our text instruction generator must discern
+visual content and generate appropriate textual instructions. This
+provides high-level guidance for the painting order. We implement
+this generator using the architecture of a large vision-language
+model LLaVA [Liu et al. 2023a]. LLaVA accepts a single image com-
+bined with a question text prompt and produces a response text
+prompt. For training, as the generator requires a single image input,
+we horizontally concatenate the target image,𝐼𝑇 , and the ground-
+truth current image,𝐼𝑡−1, to form the input. The text instruction ˆ𝑝𝑡
+is generated as follows:
+ˆ𝑝𝑡 =𝑔𝑡𝑒𝑥𝑡([𝐼𝑇,𝐼𝑡−1],𝑝), (2)
+where𝑔𝑡𝑒𝑥𝑡 is the generator, and[·,·] is horizontal concatenation of
+two images.𝑝 is the question text prompt (details in supplementary).
+To enhance the model’s performance and reduce training time,
+we initialize the text generator, 𝑔𝑡𝑒𝑥𝑡 with pretrained weights of
+Sky
+Cloud
+MountainTreeGrassFlower
+Sky
+WaterIslandReflectionDetails
+Fig. 4. Generated text instructions. The sequence of generated text in-
+structions (yellow text and arrows) demonstrate a natural painting order,
+arranging elements from back to front such as clouds over the sky, flowers
+over grass, and reflections over water. The “Details” in the right image refers
+to water texture and small details on the island. Each text instruction may
+repeat over multiple frames but is displayed only once for simplification1.
+LLaVA 1.5 [Liu et al. 2023a]. The text generator is fine-tuned with full
+supervision of the ground-truth text instructions𝑝𝑡 . The leftmost
+gray box in Fig. 3 visualizes this process, where “grass” is generated
+as the text instruction for the next step.
+Fig. 4 shows the text instructions generated during the painting
+process of in-the-wild paintings at test time. These instructions
+guide our renderer to use layering techniques, painting from back to
+front. This demonstrates that𝑔𝑡𝑒𝑥𝑡 not only captures the semantic
+essence of the target paintings but also effectively learns the painting
+order from the dataset.
+3.2.2 Mask Instruction Generator. On top of what to paint, an artist
+also decides where on the canvas to apply the content. Our method
+formulates this as a binary region mask, ˆ𝑀𝑡 . This mask provides
+instructions that specify focus regions for each step of the painting
+process. For training, as visualized in the second gray box in Fig. 3,
+our mask instruction generator considers 4 factors to determine the
+1Image courtesy Claude Monet, Poppy Field (Giverny), 1890, The Art Institute of
+Chicago. Image courtesy Cleveland Museum of Art.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 5 =====
+Inverse Painting: Reconstructing The Painting Process • 5
+(a) Inputs
+ (b) CLIP Embed (CE)
+ (c) CE + Time Embed (TE)
+ (d) CE + TE + Text
+ (e) CE + TE + Mask
+ (f) CE + TE + Text + Mask
+Fig. 5. Effects of conditional signals. (a) shows the current canvas and target image (inset). With only predicted CLIP embeddings of the next image (b), the
+model generates excessive content per update. Including time intervals (c) properly limits new content volume but results in unnatural mountain rendering.
+Omitting the mask instruction (d) causes the renderer to complete the mountain area in one step, relying heavily on the text instruction “mountain”. Omitting
+the text instruction (e) results in generating some of the green lake (red arrow) before completing the mountain (mask shown in the inset). The full pipeline (f)
+updates the canvas at a reasonable pace, drawing the top of the mountain in green, before layering on the yellow region. Image courtesy Catherine Kay
+Greenup.
+intended painting region: (1) The GT current image𝐼𝑡−1 and target
+image𝐼𝑇 . (2) Text instruction𝑝𝑡 . During training, we use the ground-
+truth instruction𝑝𝑡 to ensure that the training is guided by accurate
+instructional data. (3) Difference mask𝑀𝑑, which represents areas
+of the current canvas that are still incomplete relative to the target
+image. This binary mask𝑀𝑑 is derived by computing the difference
+map between𝐼𝑇 and𝐼𝑡−1 using perceptual distance [Zhang et al .
+2018]. This difference map is then binarized using a threshold𝛼 =
+0.2, setting pixels with values above 𝛼 to 1 in 𝑀𝑑. Formally, we
+define the operations of computing𝑀𝑑 as𝐷(𝐼𝑇,𝐼𝑡−1,𝛼). (4) Time
+interval Δ𝑡 , which can influence the size of the intended painting
+regions, as less area may be covered when less time is available.
+Considering all these factors, we design our mask instruction
+generator based on the UNet proposed in Stable Diffusion (but
+without noise as input). The cross-attention design of this UNet
+architecture allows us to seamlessly incorporate textual and time
+interval information as conditional signals.
+The mask generator𝑔𝑚𝑎𝑠𝑘 has two inputs. The first one is spatial
+input, which includes 𝐼𝑇 ,𝐼𝑡−1, and 𝑀𝑑. Specifically, we begin by
+encoding𝐼𝑇 and𝐼𝑡−1 using the pretrained VAE image encoder𝐸𝐼 .
+This encoder reduces the spatial resolution by a factor of 8 and
+converts the channel dimension from 3 to 4. We then concatenate
+these encoded images with the downsampled𝑀𝑑 (notation remains
+unchanged for simplicity) along the channel axis to form the com-
+posite spatial input:[𝐸𝐼(𝐼𝑇),𝐸𝐼(𝐼𝑡−1),𝑀𝑑]. This spatial input is fed
+into the UNet similarly to Sec. 3.1.
+The second one is the conditional input, which encodes𝑝𝑡 and
+Δ𝑡 . We first use the pretrained text encoder𝑔𝑝 in Stable Diffusion
+to encode𝑝𝑡 , producing a text embedding with 77 tokens, each of
+dimension 768. For Δ𝑡 , similar to Sec. 3.1, we use 𝑔𝑡 (same archi-
+tecture but different weights) to compute time embeddings with
+dimension 1 x 768. The time embedding is treated as an additional
+token and concatenated with the text embeddings to form the 78-
+token conditional input[𝑔𝑝(𝑝𝑡),𝑔𝑡(Δ𝑡)] for cross-attention layers.
+Formally, we denote the generation of ˆ𝑀𝑡 as follows:
+ˆ𝑀𝑡 =𝑔𝑚𝑎𝑠𝑘([𝐸𝐼(𝐼𝑇),𝐸𝐼(𝐼𝑡−1),𝑀𝑑],[𝑔𝑝(𝑝𝑡),𝑔𝑡(Δ𝑡)]). (3)
+During the training, we keep𝑔𝑝 and𝐸𝐼 frozen, and update weights
+in𝑔𝑚𝑎𝑠𝑘 and𝑔𝑡 . The training is supervised by the downsampled GT
+mask𝑀𝑡 =𝐷(𝐼𝑡,𝐼𝑡−1,𝛼) using the binary cross-entropy loss.
+3.3 Training: Canvas Rendering
+Canvas rendering aims to generate ˆ𝐼𝑡 using the current and tar-
+get images, alongside text and mask instructions, within a speci-
+fied time interval. We modify the diffusion renderer introduced in
+Sec. 3.1 to integrate text and mask instructions while keeping other
+components unchanged, as shown in Fig. 3 (third gray box). For
+training, we use the ground-truth text and mask. Specifically, we
+replace𝑔𝑓(𝐼𝑡−1) with𝑔𝑓([𝐼𝑡−1,𝑀𝑡]). Here[·,·] refers to concatena-
+tion along channel axis. We modify first layer of𝑔𝑓 to handle this
+change. The text𝑝𝑡 is encoded by𝑔𝑝, concatenated with predicted
+CLIP embeddings and time embeddings, and then input into the
+cross-attention layers. We found these CLIP embeddings provide
+semantic features beyond what is captured by explicit text and mask
+instructions alone. For instance, consider column 2 in row 1 of
+Fig. 6, where the text “mountain” and its corresponding mask serve
+as the instructions. These instructions do not specify whether the
+mountain should be painted with intricate details or in a rough,
+preliminary form, with finer details to be added later. Without CLIP
+embeddings, the model completes the mountain in full detail, devi-
+ating from the painting style of the training set. Incorporating the
+embeddings helps guide the model to adhere to the painting style.
+Fig. 5 demonstrates the impact of excluding various conditional
+signals. By omitting the mask, variant (d) generates the entire se-
+mantic content (i.e., mountain) at once, underscoring the importance
+of pixel-level mask guidance. Without text for high-level semantic
+guidance, variant (e) unexpectedly paints some of the green lake
+on the canvas. In contrast, the full pipeline (f) achieves the most
+natural result by integrating all these conditions.
+3.4 Test-Time Generation
+At inference time, we begin with a blank (white) canvas 𝐼0, and
+update this canvas autoregressively using our trained pipeline to
+approximate a target painting𝐼𝑇 . We use a fixed time interval ˆΔ𝑡
+across all steps, following our definition of keyframes. This process is
+terminated when minimal updates are applied (see supplementary).
+We visualize an update in a specific step𝑡− 1 in Fig. 3 (the rightmost
+gray box). Given the current image ˆ𝐼𝑡−1 predicted by previous step,
+we first generate the text instruction ˆ𝑝𝑡 by employing Eq.2 and
+substituting𝐼𝑡−1 with ˆ𝐼𝑡−1. Then we compute the mask ˆ𝑀𝑡 using
+Eq.3 by replacing𝐼𝑡−1 with ˆ𝐼𝑡−1,𝑀𝑑 with ˆ𝑀𝑑 = 𝐷(𝐼𝑇, ˆ𝐼𝑡−1,𝛼),𝑝𝑡
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 6 =====
+6 • Chen, et al
+TargetImage
+TargetImage
+waterwhaledetailsdetailsdetails
+mountain
+grass
+grass
+sky
+ mountain
+ 17moreframes…
+13frames…
+Fig. 6. Qualitative results with generated texts and masks.We show five consecutive generated keyframes (left) given in-the-wild target images (far-right).
+The text (caption) and mask (inset) for each keyframe are the generated instructions used to produce that keyframe. The first row illustrates the early stages
+of the process, where our method paints sequentially from back (sky) to front (grass), typically focusing on one subject per keyframe based on the provided
+text and mask. For instance, keyframes 4 and 5 focus exclusively on grass, disregarding other elements like trees (layered on later) that occupy the same region
+of the target image. The second row depicts the final stages of the painting process for a different painting. Here, our method paints the water before layering
+on the whale. The process concludes with the addition of final details scattered throughout the painting (as guided by text and mask), mimicking techniques
+used by human artists. The resulting keyframe sequence reflect human-like decisions in painting order, semantic attention, and layering techniques. Images
+courtesy Catherine Kay Greenup.
+with ˆ𝑝𝑡 , and Δ𝑡 with ˆΔ𝑡 . Finally, to render ˆ𝐼𝑡 , we start with random
+noise𝑧𝑆 and perform𝑆 denoising steps using{ ˆ𝐼𝑡−1,𝐼𝑇, ˆ𝑝𝑡, ˆ𝑀𝑡, ˆΔ𝑡}
+through diffusion renderer. This results in 𝑧0 which is decoded
+by the VAE decoder from Stable Diffusion, producing ˆ𝐼𝑡 . Please
+refer to the supplementary for details on training and test-time
+generation, including hyperparameters, execution time, and GT text
+annotations.
+Fig. 6 visualizes consecutive keyframes of the painting process
+generated by our method, guided by the text and mask instructions.
+In the early stages of the process (row 1), the method typically
+focuses on a single semantic class per update. In latter stages of
+the process (row 2), once the background is completed, the focus
+switches to completing foreground and refining details. Here, “de-
+tails” refer to fine elements typically painted in the later stages such
+as the ocean spray. In the second row of Fig. 6, columns 4-6 illus-
+trate the finishing of these elements using the same text instruction
+“details” but different mask instructions over three frames.
+4 Experiments
+4.1 Datasets
+We collected a dataset of 294 videos with typical acrylic landscape
+painting processes. The collection features common themes such
+as mountains, trees, flowers, and lakes, with paintings representing
+various times of day and weather conditions. Each video averages 9
+minutes in length and is often sped up for more efficient viewing.
+The footage comprehensively captures the complete painting pro-
+cess, including views of the canvas and palette as well as continuous
+hand and paintbrush movements throughout the video.
+For data preprocessing, we employed a pretrained segmentation
+method [Liu et al. 2023c] to segment all video frames, cropping them
+to focus solely on the canvas areas. Further, the cropped frames
+showing hands, paint strokes, or minimal changes were excluded.
+After preprocessing, we divided the dataset into 265 training and
+29 validation paintings. Both subsets have an average of 27 frames
+per artwork, with time intervals averaging around 23.6 seconds in
+training and 22.0 seconds in validation between frames. The training
+and validation sets have 7261 and 783 pairs. During testing, the time
+interval is set to 20 seconds unless stated otherwise.
+4.2 Our Results
+Fig. 7 shows the outcomes of our pipeline on in-the-wild paintings.
+First, the generated painting process resembles human-like painting
+orderings, typically painting from back to front, saving foreground
+objects and fine details for the last stages. For example, in row 2,
+the sequence starts with the sky, moves to the mountain, trees and
+water, and finishes with foreground objects and details such as the
+reflections, deck, and people. Second, each phase of the painting
+process focuses on specific semantic objects or areas. For instance,
+transitions from columns 2 to 6 in row 7 mainly focus sequentially
+on the distant bush, grass, and the foreground tree. Third, the under-
+layering contents are reliably rendered in the intermediate images
+when applying the layering techniques. For example, the base of
+the mountain is painted in row 1, column 2, with additional details
+added in column 3. Similarly, clouds are layered across the sky in row
+6, columns 1 to 2. Finally, our method effectively handles artworks
+of various aspect ratios and artistic styles, including Impression-
+ism and Realism. It also accommodates paintings with varied color
+themes. More results are in supplementary.
+4.3 Baselines
+We consider three baselines in the main paper (more baselines in sup-
+plementary). (1)Timecraft [Zhao et al. 2020] employs a conditional
+variational autoencoder to create time-lapse videos from paintings.
+It trains on real painting videos to emulate the human painting
+process. However, it handles only low-resolution 50x50 crops from
+downscaled paintings (126x168) due to computational limits. We
+trained the model on our dataset following their training strategy.
+For evaluation, we resized the target painting to 50x50 as input
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 7 =====
+Inverse Painting: Reconstructing The Painting Process • 7
+Generated Painting Process (Sampled KeyFrames)
+Fig. 7. Qualitative results. We show results on in-the-wild paintings (right-most column), where the left five columns are sampled keyframes from the
+generated painting process. Our method effectively handles landscape paintings across various artistic styles, including Impressionism, Post-Impressionism,
+and Realism. It also adapts to different color themes, as shown. The generated videos showcase human-like layering techniques, painting orders, and semantic
+region attention. Images courtesy Catherine Kay Greenup, National Gallery of Art, Washington, and Michelle Shlizerman.
+and scale the output videos back to the original painting’s resolu-
+tion. See the supplementary for evaluation on cropped paintings. (2)
+Paint Transformer [Liu et al. 2021] generates a stroke-level painting
+process from an input painting. This self-supervised method does
+not rely on real painting videos, but instead employs a hand-crafted
+coarse-to-fine strategy to mimic human painting process. We used
+the pretrained model provided by the authors for our comparisons.
+Please see supplementary for more stroke-based rendering base-
+lines [Hu et al . 2023b; Zou et al . 2021]. (3) Stable Video Diffusion
+(SVD) [Blattmann et al. 2023] produces a 14- or 25-frame video given
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 8 =====
+8 • Chen, et al
+the first frame as input. We fine-tuned a 14-frame model on our
+dataset using LoRA[Hu et al . 2021]. During this fine-tuning, we
+sampled one frame from our training sequences as input and its
+previous 13 frames as ground truth, padding with white images
+where necessary. For inference, the target painting was input into
+the fine-tuned model to generate 14 frames. The final frame from
+this sequence initiated the next set of 14 frames, continuing until a
+white canvas is achieved. Please see supplementary for more details.
+4.4 Metrics
+We aim to evaluate the methods in 5 aspects. (1) Human-likeness
+of the painting order. This measures whether the generated videos
+mimic human painting order. (2) Focus consistency in canvas up-
+dates. This checks if each update targets specific, reasonable areas.
+(3) Convergence speed towards the target painting. This evaluates
+the speed at which the generated video progresses towards the
+target painting. (4) Adherence to specified time intervals between
+keyframes. This evaluates whether the temporal progression be-
+tween generated keyframes aligns with predefined intervals, reflect-
+ing the dynamics of an actual painting process. (5) Video quality.
+We design 5 metrics to cover these aspects.
+• LPIPS. This addresses aspects (1) and (4). It calculates the
+perceptual distance between each frame in the real paint-
+ing video and the closest generated keyframe based on the
+time. For example, a real frame at 1:17 is compared with the
+generated frame at 1:20, assuming a 20-second time interval.
+• IoU (Intersection over Union). It evaluates aspect (2) with-
+out considering painting order. We first compute difference
+masks for consecutive frames in both real and generated
+videos using the function𝐷 (defined in Sec. 3.2.2). For each
+generated difference mask, we then calculate the IoU with all
+real difference masks, selecting the highest value as the final
+IoU.
+• DDC (Difference of Distance Curve). It evaluates aspects (3)
+and (4) by comparing the distance curves of the generated
+and real sequences. The distance curve of a sequence de-
+picts its progression towards the target painting, plotting
+time (x-axis, minutes) against LPIPS distance (y-axis) between
+target and current images. We use Dynamic Time Warping
+(DTW) [Müller 2007] to compute the difference between gen-
+erated and real curves, accommodating time shifts.
+• DTS (Difference of Time Spent). Evaluating aspect (4), DTS
+measures the temporal difference in minutes between the
+durations of the real and generated painting videos.
+• FID (Fréchet Inception Distance) [Heusel et al. 2017] compares
+frames in generated and GT videos for aspect (5).
+To compute these metrics, for SVD and Timecraft (trained on
+our dataset), we set the time interval to 23.6 seconds, matching our
+training set’s average. For the self-supervised Paint Transformer, we
+set it to 2.8 seconds, based on the average training video duration
+(561 seconds) divided by the number of frames (200). All metrics are
+calculated for each painting and averaged across the validation set
+to derive overall performance metrics.
+Table 1. Comparison with baselines and our ablation variants. Our
+full model (with a time interval of 20) outperforms all of them.
+Method LPIPS↓ IoU↑ DDC↓ DTS↓ FID↓
+Paint Transformer 0.643 0.104 94.61 6.057 337.3
+Timecraft 0.602 0.251 153.2 9.964 289.8
+SVD 0.500 0.197 135.5 8.577 168.3
+Ours-TE-TG-MG 0.468 0.128 88.13 6.204 203.3
+Ours-TG-MG 0.447 0.139 62.79 4.913 187.4
+Ours-TE 0.413 0.375 58.81 4.153 167.5
+Ours-MG 0.435 0.175 61.09 3.972 182.5
+Ours-TG 0.399 0.400 39.41 2.120 161.1
+Ours-RN 0.416 0.396 46.71 1.542 174.2
+Ours-CE 0.371 0.402 34.16 1.346 158.4
+Ours 10 0.369 0.349 35.27 1.693 158.7
+Ours 30 0.387 0.353 36.26 1.933 151.7
+Ours 0.364 0.418 32.66 1.273 150.6
+4.5 Comparison with Baseline
+First, we present a qualitative comparison with baselines, as illus-
+trated in Fig. 8. SVD generates artifacts such as the red blocks in
+the sky regions of column 1. This issue occurs because the target
+image has a tree that obscures this area, and SVD fails to realisti-
+cally render the obscured regions. It also results in unreasonable
+painting orders and often stalls during the painting process, leading
+to extended convergence times (columns 5 and 6).Paint Transformer
+demonstrates a non-human-like painting order in which strokes
+are added in parallel to different grid cells of a canvas. Timecraft
+produces visible artifacts in low-resolution videos, likely because its
+conditional variational autoencoder does not match the image gen-
+eration quality of diffusion models. Besides, this pure pixel-based
+method also produces unreasonable painting orders. Our model
+outperforms these baselines. Finally, we present the quantitative
+comparisons in Table. 1. Our pipeline surpasses all tested baselines
+across all metrics. For additional comparisons and analysis, includ-
+ing the visualization of distance curves and the distribution of their
+slopes, please refer to the supplementary.
+4.6 Human Study
+We conducted a human study on the generated painting processes
+of 8 in-the-wild paintings. The 33 participants were first presented
+with 3 examples of the real painting process as reference. Then for
+each painting, the participants were presented with 4 randomly
+shuffled painting processes (1 for our method and 3 for baselines),
+and were asked to give a rating from 1 to 5 (higher means better) for
+each process. We normalized the rating of each example and user
+to remove the user bias. Our method achieves the highest average
+rating, surpassing SVD by 1.9 times, Paint Transformer by 2.1 times,
+Timecraft by 3.0 times. These show that our method can produce
+a better painting process than baselines. Please see supplementary
+for more details.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 9 =====
+Inverse Painting: Reconstructing The Painting Process • 9
+GT
+Ours
+SVD
+PaintTransformer
+Timecraft
+Fig. 8. Comparison with baselines. Displayed frames are evenly sampled from GT (top row) and generated videos (other rows). The last GT frame (top-right)
+is used as input. SVD produces noticeable artifacts such as strange color blocks and truncated tree trunks, as highlighted by the red arrows in columns 1 and
+3. Additionally, it produces unreasonable painting orders and tends to get stuck during the process (e.g., minimal change between columns 5 and 6).Paint
+Transformer displays a non-human-like painting order and can only produce a “stylized” version of the target painting due to the limitations of parameterized
+paintstrokes. Timecraft results in blurry outputs with noticeable artifacts. In contrast, our method better mimics the human-like painting process and achieves
+higher visual quality.
+(a) Current Image
+ (b) 10 seconds
+ (c) 20 seconds
+ (d) 30 seconds
+ (e) Target Image
+Fig. 9. Ablation of time interval. (a) and (e) show the current and target image, respectively. (b) to (d) show the predicted next images and their masks
+(inset) given different time intervals. As the time interval increases, the size of the predicted mask expands, leading to more extensive updates on the canvas.
+Image courtesy Cleveland Museum of Art.
+4.7 Ablation Study
+We perform two ablation studies. The first one evaluates the differ-
+ent components in the pipeline using 7 variants. (1)Ours-TE-TG-MG:
+full model excluding time embeddings, text, and mask generators. (2)
+Ours-TG-MG: full model without text and mask generators. (3)Ours-
+TE: full model without time embeddings, omitting the time interval
+in the pipeline. (4) Ours-MG: full model without the mask generator.
+(5) Ours-TG: full model without the text generator, omitting text in
+the pipeline. (6) Ours-RN: full model without ReferenceNet, where
+the target image is inputted to the feature encoder in a manner sim-
+ilar to the current image. (7) Ours-CE: full model without the next
+CLIP generator. Results shown in Table. 1 and Fig. 5 indicate that
+the full model surpasses all variants. In addition to the discussion in
+Sec. 3, we observe that: (1) Ours outperforms Ours-TE, especially on
+DDC and DTS, highlighting the importance of time embeddings. (2)
+Ours-MG exhibits poor performance in IoU, illustrating the effec-
+tiveness of mask guidance for focus regions. (3) Ours outperforms
+Ours-RN, showing the effectiveness of using ReferenceNet to in-
+ject target image features into the diffusion model. (4) Ours works
+better than Ours-CE, indicating that the next CLIP generator offers
+beneficial complementary guidance.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 10 =====
+10 • Chen, et al
+The second ablation study evaluates the effect of different time
+intervals during testing. We test two variants, Ours 10 and Ours 30,
+with time intervals set to 10 and 30 seconds respectively. Table. 1
+shows that the IoU for these variants is lower than Ours, which
+might be because the average time interval in the validation set is
+around 22 seconds, closer to Ours (20 seconds). This suggests that
+time embeddings effectively guide the mask generator to produce
+reasonable size of region masks. Additionally, Fig. 9 visualizes the
+impact of different time intervals on a single canvas update. A larger
+time interval leads to a larger region mask and a more substantial
+update on the canvas, demonstrating how time intervals can be used
+to regulate the number of frames required to complete a painting.
+Different time intervals can also be used at various stages of the
+painting process based on user needs.
+4.8 Analysis of the Text and Mask Generators
+First, we compare the entire sequences of our generated text in-
+structions with the sequences of GT instructions in two ways: (a)
+without considering order, 91% of our instructions appear in the
+GT instructions, and (b) taking order into account by computing
+the longest common subsequence (LCS) between GT and our in-
+structions, 78% of our instructions are included in the LCS. These
+show that our text generator provides reasonable instructions for
+the painting order.
+Second, instead of evaluating entire text instruction sequences,
+we evaluate a single canvas update with GT current image and time
+interval as input. This enables the use of GT text and masks for
+each update during evaluation. Our text generator produces text
+instructions that align with GT text 72% of the time, outperforming
+the pretrained LLaVA model used to initialize it (31%). When provid-
+ing the predicted text as input to the mask generator, the predicted
+mask’s IoU is 0.64, slightly lower than using GT text (0.70). These
+demonstrate the text generator’s effectiveness.
+Finally, we also evaluate our mask generator based on a single
+canvas update. Generating masks by a pretrained segmentation
+method [Liu et al. 2023c] using GT text yields an IoU of 0.42, lower
+than our mask generator’s 0.70. Removing the text condition in
+our mask generator yields a suboptimal IoU of 0.58. These results
+demonstrate the effectiveness of our mask generator design.
+5 Discussions
+5.1 Emergent Property
+Our method showcases an emergent property related to the paint-
+ing principle, as depicted in Fig. 10. The time map (b) is derived
+from difference masks ˆ𝑀𝑡 between consecutive keyframes in the
+generated videos. Each mask is weighted by its sequence position𝑡
+and merged into a single image, with overlapping areas selecting
+the highest value to form the time map. This map is similar to a
+depth map, indicating that the back-to-front painting principle –
+reflective of the artists’ styles in our training dataset – has been
+effectively captured by our method.
+5.2 Limitations and Future Work
+Our method has several limitations. First, it is trained on landscape
+paintings and struggles to generalize to other types of paintings like
+(a) Input
+ (b) Time Map
+Fig. 10. Emergent property. The time map (b), derived from the difference
+masks, is similar to the (inverse) depth map of the target painting (a). This
+highlights our method’s effectiveness in capturing the typical painting
+principle of layering from back to front, as learned from the training videos.
+Image courtesy Simon Berger.
+Fig. 11. Failure cases. Trained only on landscapes, our method produces
+unnatural results on portraits. Image courtesy the MET.
+portraits (Fig. 11). Future work will involve extending its applicabil-
+ity to different genres. Second, our method currently exhibits limited
+painting styles due to the training data. Training on a larger and
+more diverse dataset could help the model learn various painting
+styles. Third, our method fails when encountering paintings with
+large objects (e.g., colosseum) that are uncommon in the landscape.
+In such cases, the model can still paint the objects with the help
+of predicted CLIP embeddings, but in an incorrect painting order.
+Incorporating a semantic map could potentially address this issue.
+Acknowledgments
+This work was supported by the UW Reality Lab and Google.
+References
+Andreas Blattmann, Tim Dockhorn, Sumith Kulal, Daniel Mendelevitch, Maciej Kilian,
+Dominik Lorenz, Yam Levi, Zion English, Vikram Voleti, Adam Letts, et al. 2023.
+Stable video diffusion: Scaling latent video diffusion models to large datasets. arXiv
+preprint arXiv:2311.15127 (2023).
+Ross Bob. 1987. Bob Ross Experience The Joy of Painting Volume X 10 Ten . Bob Ross;
+First Edition.
+Bowei Chen, Brian Curless, Ira Kemelmacher-Shlizerman, and Steve Seitz. 2023. Total
+Selfie: Generating Full-Body Selfies. arXiv preprint arXiv:2308.14740 (2023).
+Manuel Ladron de Guevara, Matthew Fisher, and Aaron Hertzmann. 2023. Segmentation-
+Based Parametric Painting. arXiv preprint arXiv:2311.14271 (2023).
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua
+Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold,
+Sylvain Gelly, et al. 2020. An image is worth 16x16 words: Transformers for image
+recognition at scale. arXiv preprint arXiv:2010.11929 (2020).
+Annette Dozier. 2007. Painting peaceful country landscapes . North Light Books.
+Kevin Frans and Chin-Yi Cheng. 2018. Unsupervised image to sequence translation
+with canvas-drawer networks. arXiv preprint arXiv:1809.08340 (2018).
+Hongbo Fu, Shizhe Zhou, Ligang Liu, and Niloy J Mitra. 2011. Animated construction
+of line drawings. In Proceedings of the 2011 SIGGRAPH Asia Conference . 1–10.
+Yaroslav Ganin, Tejas Kulkarni, Igor Babuschkin, SM Ali Eslami, and Oriol Vinyals.
+2018. Synthesizing programs for images using reinforced adversarial learning. In
+International Conference on Machine Learning . PMLR, 1666–1675.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.
+===== PAGE 11 =====
+Inverse Painting: Reconstructing The Painting Process • 11
+David Ha and Douglas Eck. 2017. A neural representation of sketch drawings. arXiv
+preprint arXiv:1704.03477 (2017).
+Paul Haeberli. 1990. Paint by numbers: Abstract image representations. InProceedings of
+the 17th annual conference on Computer graphics and interactive techniques . 207–214.
+Aaron Hertzmann. 1998. Painterly rendering with curved brush strokes of multiple sizes.
+In Proceedings of the 25th annual conference on Computer graphics and interactive
+techniques. 453–460.
+Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp
+Hochreiter. 2017. Gans trained by a two time-scale update rule converge to a local
+nash equilibrium. Advances in neural information processing systems 30 (2017).
+Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang,
+Lu Wang, and Weizhu Chen. 2021. Lora: Low-rank adaptation of large language
+models. arXiv preprint arXiv:2106.09685 (2021).
+Li Hu, Xin Gao, Peng Zhang, Ke Sun, Bang Zhang, and Liefeng Bo. 2023a. Animate any-
+one: Consistent and controllable image-to-video synthesis for character animation.
+arXiv preprint arXiv:2311.17117 (2023).
+Teng Hu, Ran Yi, Haokun Zhu, Liang Liu, Jinlong Peng, Yabiao Wang, Chengjie Wang,
+and Lizhuang Ma. 2023b. Stroke-based Neural Painting and Stylization with Dy-
+namically Predicted Painting Region. In Proceedings of the 31st ACM International
+Conference on Multimedia. 7470–7480.
+Zhewei Huang, Wen Heng, and Shuchang Zhou. 2019. Learning to paint with model-
+based deep reinforcement learning. In Proceedings of the IEEE/CVF international
+conference on computer vision . 8709–8718.
+Biao Jia, Chen Fang, Jonathan Brandt, Byungmoon Kim, and Dinesh Manocha. 2019.
+Paintbot: A reinforcement learning approach for natural media painting. arXiv
+preprint arXiv:1904.02201 (2019).
+Dmytro Kotovenko, Matthias Wright, Arthur Heimbrecht, and Bjorn Ommer. 2021.
+Rethinking style transfer: From pixels to parameterized brushstrokes. InProceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 12196–12205.
+Alexander Leiser and Tim Schlippe. 2021. AI in art: simulating the human painting pro-
+cess. In International Conference on ArtsIT, Interactivity and Game Creation . Springer,
+295–308.
+Peter Litwinowicz. 1997. Processing images and video for an impressionist effect.
+In Proceedings of the 24th annual conference on Computer graphics and interactive
+techniques. 407–414.
+Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. 2023a. Visual Instruction
+Tuning.
+Songhua Liu, Tianwei Lin, Dongliang He, Fu Li, Ruifeng Deng, Xin Li, Errui Ding,
+and Hao Wang. 2021. Paint transformer: Feed forward neural painting with stroke
+prediction. In Proceedings of the IEEE/CVF international conference on computer vision.
+6598–6607.
+Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Chunyuan Li,
+Jianwei Yang, Hang Su, Jun Zhu, et al. 2023c. Grounding dino: Marrying dino with
+grounded pre-training for open-set object detection. arXiv preprint arXiv:2303.05499
+(2023).
+Xiao-Chang Liu, Yu-Chen Wu, and Peter Hall. 2023b. Painterly Style Transfer With
+Learned Brush Strokes. IEEE Transactions on Visualization and Computer Graphics
+(2023).
+Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ra-
+mamoorthi, and Ren Ng. 2021. Nerf: Representing scenes as neural radiance fields
+for view synthesis. Commun. ACM 65, 1 (2021), 99–106.
+Meinard Müller. 2007. Dynamic time warping. Information retrieval for music and
+motion (2007), 69–84.
+Royi Rassin, Shauli Ravfogel, and Yoav Goldberg. 2022. Dalle-2 is seeing double: flaws
+in word-to-concept mapping in Text2Image models. arXiv preprint arXiv:2210.10606
+(2022).
+Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Björn Ommer.
+2022. High-Resolution Image Synthesis With Latent Diffusion Models. InProceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) .
+10684–10695.
+Chitwan Saharia, William Chan, Saurabh Saxena, Lala Li, Jay Whang, Emily L Denton,
+Kamyar Ghasemipour, Raphael Gontijo Lopes, Burcu Karagol Ayan, Tim Salimans,
+et al. 2022. Photorealistic text-to-image diffusion models with deep language under-
+standing. Advances in Neural Information Processing Systems 35 (2022), 36479–36494.
+Jaskirat Singh, Cameron Smith, Jose Echevarria, and Liang Zheng. 2021. Intelli-paint:
+Towards developing human-like painting agents. arXiv preprint arXiv:2112.08930
+(2021).
+Jaskirat Singh and Liang Zheng. 2021. Combining semantic guidance and deep re-
+inforcement learning for generating human level paintings. In Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition . 16387–16396.
+Fan Tang, Weiming Dong, Yiping Meng, Xing Mei, Feiyue Huang, Xiaopeng Zhang,
+and Oliver Deussen. 2017. Animated construction of Chinese brush paintings. IEEE
+transactions on visualization and computer graphics 24, 12 (2017), 3019–3031.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N
+Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need.Advances
+in neural information processing systems 30 (2017).
+Zunfu Wang, Fang Liu, Zhixiong Liu, Changjuan Ran, and Mohan Zhang. 2024.
+Intelligent-paint: a Chinese painting process generation method based on vision
+transformer. Multimedia Systems 30, 2 (2024), 1–17.
+Ning Xie, Hirotaka Hachiya, and Masashi Sugiyama. 2013. Artist agent: A reinforcement
+learning approach to automatic stroke generation in oriental ink painting. IEICE
+TRANSACTIONS on Information and Systems 96, 5 (2013), 1134–1144.
+Binxin Yang, Shuyang Gu, Bo Zhang, Ting Zhang, Xuejin Chen, Xiaoyan Sun, Dong
+Chen, and Fang Wen. 2022. Paint by Example: Exemplar-based Image Editing with
+Diffusion Models. arXiv preprint arXiv:2211.13227 (2022).
+Lvmin Zhang, Anyi Rao, and Maneesh Agrawala. 2023. Adding conditional control
+to text-to-image diffusion models. In Proceedings of the IEEE/CVF International
+Conference on Computer Vision . 3836–3847.
+Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shechtman, and Oliver Wang. 2018.
+The Unreasonable Effectiveness of Deep Features as a Perceptual Metric. In CVPR.
+Amy Zhao, Guha Balakrishnan, Kathleen M Lewis, Frédo Durand, John V Guttag, and
+Adrian V Dalca. 2020. Painting many pasts: Synthesizing time lapse videos of
+paintings. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition. 8435–8445.
+Zhengxia Zou, Tianyang Shi, Shuang Qiu, Yi Yuan, and Zhenwei Shi. 2021. Stylized
+neural painting. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition. 15689–15698.
+SA Conference Papers ’24, December 03–06, 2024, Tokyo, Japan.

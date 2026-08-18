@@ -1,0 +1,835 @@
+
+===== PAGE 1 =====
+Learning to Paint With Model-based Deep Reinforcement Learning
+Zhewei Huang1,2 Wen Heng1 Shuchang Zhou1
+1Megvii Inc 2Peking University
+{huangzhewei, hengwen, zsc }@megvii.com
+Abstract
+We show how to teach machines to paint like human
+painters, who can use a small number of strokes to cre-
+ate fantastic paintings. By employing a neural renderer
+in model-based Deep Reinforcement Learning (DRL), our
+agents learn to determine the position and color of each
+stroke and make long-term plans to decompose texture-
+rich images into strokes. Experiments demonstrate that
+excellent visual effects can be achieved using hundreds of
+strokes. The training process does not require the expe-
+rience of human painters or stroke tracking data. The
+code is available at
+https://github.com/hzwer/
+ICCV2019-LearningToPaint.
+1. Introduction
+Painting, being an important form of visual art, sym-
+bolizes human wisdom and creativity. In recent centuries,
+artists have used a diverse array of tools to create their
+masterpieces. But it’s hard for people to master this skill
+without spending a large amount of time in proper training.
+Therefore, teaching machines to paint is a challenging task
+and helps to shed light on the mystery of painting. Fur-
+thermore, the study of this topic can help us build painting
+assistant tools.
+We train an artiﬁcial intelligence painting agent that can
+paint strokes on a canvas in sequence to generate a painting
+that resembles a given image. Neural networks are used to
+produce parameters that control the position, shape, color,
+and transparency of strokes. Previous works have stud-
+ied teaching machines to learn painting-related skills, such
+as sketching [
+7, 3, 29], doodling [ 35] and writing charac-
+ters [ 34]. In contrast, we aim to teach machines to handle
+more complex tasks, such as painting portraits of humans
+and natural scenes in the real world, which have rich tex-
+tures and complex structural compositions.
+We address three challenges for training an agent to paint
+real-world images. First, painting like humans requires an
+agent to have the ability to decompose a given target im-
+age into an ordered sequence of strokes. The agent needs to
+Figure 1: The painting process . The ﬁrst column shows
+the target images. Our agent tends to draw in a coarse-to-
+ﬁne manner.
+parse the target image visually, understand the current sta-
+tus of the canvas, and have foresightful plans about future
+strokes. To achieve this planning, one method is to give the
+supervised loss for stroke decomposition at each step, as
+in [
+7]. However, such a method require ground truth stroke
+decomposition, which is hard to deﬁne. Also, texture-rich
+image painting usually requires hundreds of strokes to gen-
+erate a painting that resembles a target image, which is tens
+of times more than doodling, sketching or character writing
+require and increases the difﬁculty of planning. To han-
+dle the ill-deﬁnedness of the problem, and the long-term
+planning challenge, we propose using reinforcement learn-
+ing (RL) to train the agent, because RL can maximize the
+cumulative rewards of a whole painting process rather than
+minimizing supervised loss at each step. Experiments show
+that an RL agent can build plans for stroke decomposition
+with hundreds of steps. Moreover, we apply the adversar-
+ial training strategy [
+5] to improve the pixel-level quality of
+the generated images, as the strategy has proved effective in
+other image generation tasks [
+17].
+Second, we design continuous stroke parameter space,
+including stroke location, color, and transparency, to im-
+prove the painting quality. Previous works [
+7, 35, 4] de-
+8709
+
+===== PAGE 2 =====
+(a)
+ (b)
+Figure 2: The overall architecture . (a) At the inference stage, the actor outputs a set of stroke parameters based on the
+canvas status and target image at each step. The renderer then renders the stroke on the canvas accordingly. (b) At the
+training stage, the actor is trained with assistants of an adversarial discriminator and a critic. The reward is given by the
+discriminator at each step, and the training samples are randomly sampled from the replay buffer.
+sign discrete stroke parameter spaces and each parameter
+has only a limited number of choices, which fall short for
+texture-rich paintings. Instead, we adopt the Deep Deter-
+ministic Policy Gradient (DDPG) [
+19] which copes well
+with the continuous action space of the agent.
+Third, we build an efﬁcient differentiable neural renderer
+that can simulate painting of hundreds of strokes on the
+canvas. Most previous works [
+7, 35, 4] paint by interact-
+ing with undifferentiable painting simulation environments,
+which are good as renders but fail to provide detailed feed-
+back about the generated images. Instead, we train a neu-
+ral network that directly maps stroke parameters to stroke
+paintings. The renderer can also be adapted to different
+stroke designs like triangle and circles by changing the gen-
+eration patterns. Moreover, the differential renderer can be
+combined with DDPG into a single model-based DRL that
+can be trained in an end-to-end fashion, which signiﬁcantly
+boosts both the painting quality and convergence speed.
+In summary, our contributions are three-fold:
+• We approach the painting task with the model-based
+DRL algorithm and build agents that decompose the
+target image into hundreds of strokes in sequence
+which can recreate a painting on canvas.
+• We build differentiable neural renderers for efﬁcient
+painting and ﬂexible support of different stroke de-
+signs, e.g. B ´ezier curve, triangle, and circle. The neu-
+ral renderer contributes to the painting quality by al-
+lowing training model-based DRL agent in an end-to-
+end fashion.
+• Experiments show that the proposed painting agent can
+handle multiple types of target images well, including
+handwritten digits, streetview house numbers, human
+portraits, and natural scene images.
+2. Related work
+Stroke-based rendering (SBR) is a method of non-
+photorealistic imagery that recreates images by placing dis-
+crete drawing elements such as paint strokes or stipples [
+12]
+on canvas. Most SBR algorithms solve the stroke decom-
+position problem by Greedy Search on every single step or
+require user interaction. Haeberli et al. [
+9] propose a semi-
+automatic method which requires the user to set parameters
+to control the shape of the strokes and select the positions
+for each stroke. Litwinowicz et al . [
+21] propose a single-
+layer painter-like rendering which places the brush strokes
+on a grid in the image plane, with randomly perturbed posi-
+tions. Some work also studies the effects of using different
+stroke designs [
+11] and the related problem of generating
+animations from video [ 20].
+Recent works use RL to improve the stroke decomposi-
+tion of images. SPIRAL [ 4] is an adversarially trained DRL
+agent that learn structures in images, but fails to recover the
+details of human portraits. StrokeNet [
+34] combines dif-
+ferentiable renderer and recurrent neural network (RNN) to
+train agents to paint but fails to generalize on color images.
+Doodle-SDQ [
+35] trains the agents to emulate human doo-
+dling with DQN. Earlier, Sketch-RNN [ 7] uses sequential
+datasets to achieve good results in sketch drawings. Artist
+Agent [
+32] explores using RL for the automatic generation
+of a single brush stroke.
+3. Painting Agent
+3.1. Overview
+The goal of the painting agent is decomposing the given
+target image into strokes that can recreate the image on the
+canvas. To imitate the painting process of humans, the agent
+is designed to predict the next stroke based on observing
+the current state of the canvas and the target image. How-
+ever, the stroke at each step needs to be well compatible
+8710
+
+===== PAGE 3 =====
+(a) MNIST [ 16]
+ (b) SVHN [ 24]
+ (c) CelebA [ 23]
+ (d) ImageNet [ 25]
+Figure 3: The painting results on multiple datasets. The stroke numbers of the paintings are 5, 40, 200 and 400 for MNIST,
+SVHN, CelebA and ImageNet respectively.
+with previous strokes and future strokes to reduce the num-
+ber of strokes for ﬁnishing the painting. We postulate that
+the agent should maximize the cumulative rewards after ﬁn-
+ishing the given number of strokes, rather than the gain of
+current stroke. To achieve this delayed-reward design, we
+employ a DRL framework, with the diagrams for the overall
+architecture shown in Figure
+2.
+In the framework, we model the painting process as a
+sequential decision-making task, which is described in Sec-
+tion
+3.2. And to build the feedback mechanism, we use a
+neural renderer to help generate detailed rewards for train-
+ing the agent, which is described in Section
+3.3.
+3.2. The Model
+Given a target image I and an empty canvas C0, the
+agent aims to ﬁnd a stroke sequence (a0, a1, ..., an− 1),
+where rendering at on Ct can get Ct+1. After rendering
+these strokes in sequence, we get the ﬁnal painting Cn,
+which should be visually similar to I as much as possi-
+ble. We model this task as a Markov Decision Process with
+a state space S, an action space A, a transition function
+trans(st, at) and a reward function r(st, at). The details of
+these components are speciﬁed next.
+State and Transition Function The state space is con-
+structed by all possible information that the agent can ob-
+serve in the environment. We separate a state into three
+parts: states of the canvas, the target image, and the step
+number. Formally, st = ( Ct, I, t). Ct and I are bitmaps
+and the step number t acts as additional information to in-
+struct the agent the remaining number of steps. The tran-
+sition function , st+1 = trans( st, at) gives the transition
+process between states, which is implemented by painting a
+stroke on the current canvas.
+Action An action at of the painting agent is a set of pa-
+rameters that control the position, shape, color and trans-
+parency of the stroke that would be painted at step t. We
+deﬁne the behavior of an agent as a policy function π that
+maps states to deterministic actions, i.e. π : S → A . At
+step t, the agent observes state st before predicting the pa-
+rameters of the next stroke at. The state evolves based on
+the transition function st+1 = trans(st, at), which runs for
+n steps.
+Reward Selecting a suitable metric to measure the dif-
+ference between the current canvas and the target image is
+found to be crucial for training a painting agent. The reward
+is designed as follows,
+r(st, at) = Lt − Lt+1 (1)
+where r(st, at) is the reward at step t, Lt is the measured
+loss between I and the Ct and Lt+1 is the measured loss
+between I and the Ct+1. In this work, L is formulated as
+the discriminator score that is deﬁned in Section
+3.3.3.
+To make the ﬁnal canvas resemble the target image, the
+agent should be driven to maximize the cumulative rewards
+in the whole episode. At each step, the objective of the agent
+is to maximize the sum of discounted future reward Rt =∑ T
+i=t γ(i− t)r(si, ai) with a discounting factor γ ∈ [0, 1].
+8711
+
+===== PAGE 4 =====
+3.3. Learning
+In this section, we introduce how to train the agent using
+the model-based DDPG algorithm.
+(a) Original DDPG
+ (b) Model-based DDPG
+Figure 4: In the original DDPG, critic needs to learn to
+model the environment implicitly. In the model-based
+DDPG, the environment is explicitly modeled through a
+neural renderer, which helps to train an agent efﬁciently.
+3.3.1 Model-based DDPG
+We ﬁrst describe the original DDPG, then introduce build-
+ing model-based DDPG for efﬁcient agent training.
+As we use continuous parameters for strokes, the ac-
+tion space in the painting task is continuous and of high
+dimensions. Discretizing the action space to adapt some
+DRL methods, such as DQN and PG, will lose the precision
+of stroke representation and require many efforts in man-
+ual structure design to cope with the explosion of parame-
+ter combinations in discrete space. In contrast, DPG [
+28]
+uses deterministic policy to resolve the difﬁculties caused
+by high-dimensional continuous action space, and DDPG is
+its variant using Neural Networks.
+In the original DDPG, there are two networks: the ac-
+tor π(s) and critic Q(s, a). The actor models a policy
+π that maps a state st to action at. The critic estimates
+the expected reward for the agent taking action at at state
+st, which is trained using Bellman equation (
+2) as in Q-
+learning [ 30] and the data is sampled from an experience
+replay buffer:
+Q(st, at) = r(st, at) + γQ(st+1, π(st+1)) (2)
+.
+Here r(st, at) is a reward given by the environment when
+performing action at at state st. The actor π(st) is trained
+to maximize the critic’s estimated Q(st, π(st)). In other
+words, the actor decides a stroke for each state. Based on
+the current canvas and the target image, the critic predicts
+an expected reward for the stroke. The critic is optimized to
+estimate more accurate expected rewards.
+We cannot train a good-performance painting agent us-
+ing original DDPG because it’s hard for the agent to model
+the complex environment well that is composed of any types
+of real-world images during learning. The World Model [
+8]
+is a method to make agent understand the environments ef-
+fectively. Similarly, we design a neural renderer so that the
+agent can observe a modeled environment. Then it can ex-
+plore the environment and improve its policy efﬁciently. We
+term the DDPG with the actor that can get access to the
+gradients from environments as model-based DDPG. The
+difference between the two algorithms is visually shown in
+Figure
+4.
+The optimization of the agent using the model-based
+DDPG is different from that using the original DDPG. At
+step t, the critic takes st+1 as input rather than both of st
+and at. The critic still predicts the expected reward for the
+state but no longer includes the reward caused by the cur-
+rent action. The new expected reward is a value function
+V (st) trained using discounted reward:
+V (st) = r(st, at) + γV (st+1) (3)
+Here r(st, at) is the reward when performing action at
+based on st. The actor π(st) is trained to maximize
+r(st, π(st)) + V (trans(st, π(st))). The transition function
+st+1 = trans(st, at) is the differentiable renderer.
+3.3.2 Action Bundle
+Frame Skip [
+2] is a powerful trick for many RL tasks, by re-
+stricting the agent to only observe the environment and acts
+once every k frames rather than one frame. The trick makes
+the agents have a better ability to learn associations between
+more temporally distant states and actions. The agent pre-
+dicts one action and reuse it at the next k − 1 frames instead
+and achieves better performance with less computation cost.
+Inspired by this trick, we propose using Action Bundle
+that the agent predicts k strokes at each step and the ren-
+derer renders these strokes in order. This practice encour-
+ages the exploration of the action space and action combi-
+nations. The renderer can render k strokes simultaneously
+to greatly speed up the painting process.
+We experimentally ﬁnd that setting k = 5 is a good
+choice that signiﬁcantly improves the performance and the
+learning speed. It’s worth noting that we modify the reward
+discount factor from γ to γk to keep consistency.
+3.3.3 WGAN Reward
+GAN has been widely used as a particular loss function in
+transfer learning, text model and image restoration [
+18, 33],
+because of its great ability in measuring the distribution
+distance between the generated data and the target data.
+Wasserstein GAN (WGAN) [
+1] is an improved version of
+the original GAN that uses the Wasserstein-l distance, also
+8712
+
+===== PAGE 5 =====
+known as Earth-Mover distance. The objective of the dis-
+criminator in WGAN is deﬁned as
+max
+D
+Ey∼ µ [D(y)] − Ex∼ ν [D(x)] (4)
+where D denotes the discriminator, ν and µ are the fake
+samples and real samples distribution. The conditional
+GAN training schema [
+14] is used, where fake samples are
+pairs of a painting and its target; and real samples are two
+same target images as shown in Figure
+5. The prerequisite
+of the above objective is that D should be under the con-
+straints of 1-Lipschitz. To achieve the constraint, we use
+WGAN with gradient penalty (WGAN-GP) [
+6].
+Figure 5: Training of the Discriminator
+We want to reduce the differences between paintings and
+target images as much as possible. To achieve this, we set
+the difference of D scores from st to st+1 using equation (
+1)
+as the reward for guiding the learning of the actor. In exper-
+iments, we ﬁnd rewards derived from D scores is better than
+L2 distance.
+3.4. Network Architectures
+(a) The actor and critic
+ (b) The discriminator
+(c) The neural renderer
+Figure 6: Network architectures. FC refers to a fully-
+connected layer, Conv refers to a convolution layer, and
+GAP refers to a global average pooling layer. The actor and
+the critic use the same structure except for the last FC layers
+that have different output dimensions.
+Due to the high variability and complexity of real-world
+images, we use residual structures similar to ResNet-18 [
+10]
+as the feature extractor in the actor and the critic. The ac-
+tor works well with Batch Normalization (BN) [
+13], but
+BN can not speed up the critic learning signiﬁcantly. We
+use WN [
+26] with Translated ReLU (TReLU) [ 31] on the
+critic to stabilize our learning. In addition, we use Coord-
+Conv [
+22] as the ﬁrst layer in the actor and the critic. For
+the discriminator, we use a network architecture similar to
+PatchGAN [
+14], and with WN and TReLU. The network ar-
+chitectures of the actor, critic and discriminator are shown
+in Figure
+6 (a) and (b).
+Following the original DDPG paper, we use the soft tar-
+get network which creates a copy for the actor and critic and
+updating their parameters by having them slowly track the
+learned networks. We also apply this trick on the discrimi-
+nator to improve its training stability.
+4. Stroked-based Renderer
+In this section, we introduce how to build a neural stroke
+renderer and use it to generate multiple types of strokes.
+4.1. Neural Renderer
+Using a neural network to generate strokes has two ad-
+vantages. First, the neural renderer is ﬂexible to generate
+any styles of strokes and is more efﬁcient on GPU’s than
+most hand-crafted stroke simulators. Second, the neural
+renderer is differentiable and enables end-to-end training
+which boosts the performance of the agent.
+Speciﬁcally, the neural renderer has as input a set of
+stroke parameters at and outputs the rendered stroke im-
+age S. The training samples are generated randomly us-
+ing Computer Graphics rendering programs. The neural
+renderer can be quickly trained with supervised learning
+and runs on the GPU. The model-based transition dynam-
+ics st+1 = trans( st, at) and the reward function r(st, at)
+are differentiable. Some simple geometric trajectories like
+circles have simple closed-form gradients. However, in gen-
+eral, the discreteness of pixel position and pixel values re-
+quires continuous approximation when deriving gradients,
+e.g. for B´ezier Curves. The approximations need to be care-
+fully designed to not break the agent learning.
+The neural renderer is a neural network consisting of
+several fully connected layers and convolution layers. Sub-
+pixel upsampling [
+27] is used to increase the resolution of
+strokes in the network, which is a fast running operation
+and can eliminate the checkerboard effect. We show the
+network architecture of the neural renderer in Figure
+6 (c).
+4.2. Stroke Design
+Strokes can be designed as a variety of curves or geome-
+tries. In general, the parameter of a stroke should include
+the position, shape, color, and transparency.
+We design a stroke represent of quadratic B ´ezier curve
+(QBC) with thickness to simulate the effects of brushes.
+The shape of the B ´ezier curve is speciﬁed by the coordi-
+nates of control points. Formally, the stroke is deﬁned as
+8713
+
+===== PAGE 6 =====
+(a)
+ (b)
+ (c)
+ (d)
+ (e)
+ (f)
+ (g)
+Figure 7: CelebA paintings under different settings. (a) The paintings of SPIRAL with 20 strokes [ 4] (b) Ours with 20 opaque
+strokes (c) Ours with 200 opaque strokes (d) Ours with 200 strokes and ℓ2 reward (e) Ours with 200 strokes (Baseline) (f)
+Ours with 1000 strokes (g) The target images
+the following tuple:
+at = (x0, y0, x1, y1, x2, y2, r0, t0, r1, t1, R, G, B)t, (5)
+where (x0, y0, x1, y1, x2, y2) are the coordinates of the
+three control points of the QBC. (r0, t0), (r1, t1) control
+the thickness and transparency of the two endpoints of the
+curve, respectively. (R, G, B) controls the color. The for-
+mula of QBC is:
+B(t) = (1 − t)2P0 + 2(1 − t)tP1 + t2P2, 0 ≤ t ≤ 1, (6)
+As changing stroke representation only requires chang-
+ing the ﬁnal stroke rendering layer, we can use neural ren-
+ders with the same network structure to implement the ren-
+dering of different stroke designs.
+5. Experiments
+Four datasets are used for our experiments, including
+MNIST [
+16], SVHN [ 24], CelebA [ 23] and ImageNet [ 25].
+We show that the agent has excellent performance in paint-
+ing various types of real-world images.
+5.1. Datasets
+MNIST contains 70,000 examples of hand-written digits,
+where 60,000 are training data, and 10,000 are testing data.
+Each example is a grayscale image of 28 × 28 pixels.
+SVHN is a real-world streetview house number image
+dataset, including 600,000 digits images. Each sample in
+the Cropped Digits set is a color image of 32 × 32 pixels.
+We randomly sample 200,000 images for our experiments.
+CelebA contains approximately 200,000 celebrity face
+images. The ofﬁcially provided center-cropped images are
+used in our experiments.
+ImageNet (ILSVRC2012) contains 1.2 million natural
+scene images, which fall into 1000 categories. The extreme
+diversity of ImageNet poses a grand challenge to the paint-
+ing agent. We randomly sample 200,000 images that cover
+1,000 categories as training data.
+In our task, we aim to train an agent that can paint any
+images rather than only the ones in the training set. Thus,
+we additionally split out testing set to test the generalization
+ability of the trained agent. For MNIST, we use the ofﬁ-
+cially deﬁned testing set. For other datasets, we randomly
+split out 2,000 images as the testing set.
+5.2. Training
+We resized all images to the resolution of 128 × 128 pix-
+els before feeding the agent. With an action bundle con-
+taining 5 strokes, it takes about 2.1s to paint an image using
+200 strokes on a 2.2GHz Intel Core i7 CPU. On an NVIDIA
+2080Ti GPU, a 9.5× acceleration can be achieved. The
+computation cost of the actor and renderer are about 554
+8714
+
+===== PAGE 7 =====
+(a) DDPG and model-based DDPG
+ (b) Different settings of Action Bundle
+ (c) Different number of strokes
+Figure 8: The testing ℓ2-distance between paintings and the target images of CelebA for ablation studies.
+MFLOPs and 217 MFLOPs respectively for painting an ac-
+tion bundle.
+We trained the agent with 2 × 105 mini-batches for Im-
+ageNet and CelebA datasets, 105 mini-batches for SVHN
+and 2 × 104 mini-batches for MNIST. Adam [ 15] was used
+for optimization, and the minibatch size was set as 96. The
+agent training was performed on a single GPU. It took about
+40 hours for training on ImageNet and CelebA, 20 hours for
+SVHN and two hours for MNIST. It took 5 to 15 hours to
+train the neural renderer for every stroke design. The same
+trained renderer can be used for different agents.
+At each iteration, we update the critic, actor, and dis-
+criminator in turn. All models are trained from scratch. The
+replay memory buffer was set to store the data of the lat-
+est 800 episodes for training the agent. Please refer to the
+supplemental materials for more training details.
+5.3. Results
+Figure 9: The testing ℓ2-distance between the paintings and
+the target images for different datasets.
+The images of MNIST and SVHN show simple image
+structures and regular contents. We train one agent that
+paints ﬁve strokes for images of MNIST, and another one
+that paints 40 strokes for images of SVHN. The example
+paintings are shown in Figure
+3 (a) and (b). The agents can
+perfectly reproduce the target images.
+In contrast, the images of CelebA have more complex
+structures and diverse contents. We train a 200-strokes
+agent to deal with the images of CelebA. As shown in Fig-
+ure
+3 (c), the paintings are quite similar to the target images
+although losing a certain level of details.
+We train a 400-strokes agent to deal with the images of
+ImageNet, due to the extremely complex structures and di-
+verse contents. As shown in Figure
+3 (d), paintings are sim-
+ilar to the target images concerning the outline and colors of
+objects and backgrounds. Despite the loss of some textures,
+the agent still shows great power in decomposing compli-
+cated scenes into strokes and can reasonably repaint them.
+We show the test loss curves of agents trained on differ-
+ent datasets in Figure
+9.
+In [ 4] SPIRAL shows its performance on CelebA. To
+make a fair comparison, we also train a 20-strokes agent
+as SPIRAL and use opaque strokes. The results of the two
+methods are shown in Figure
+7 (a) and (b) respectively. Our
+ℓ2 distance is 3x smaller than that of SPIRAL. We analyze
+the main differences between SPIRAL and our methods as
+follows. First, SPIRAL uses an undifferentiable painting
+simulator and have to use model-free RL algorithms, which
+usually perform worse than the model-based ones. Second,
+SPIRAL predicts an action by recurrently producing each
+dimension with strong nonlinearities. Our method simpli-
+ﬁes this step by predicting multiple action vectors in just
+one step. Third, we believe having a sufﬁcient number of
+strokes is critical for vivid results. SPIRAL only gets a re-
+ward after ﬁnishing a whole episode. This makes the re-
+wards too sparse as the number of steps increases.
+5.4. Ablation Studies
+In this section, we study how the components or tricks
+affect the performance of the agent. The control experi-
+ments are performed on CelebA.
+5.4.1 Model-based vs. Model-free DDPG
+We explore how much beneﬁts are brought by model-based
+DDPG over original DDPG. Original DDPG can only es-
+sentially model the environment with observations and re-
+wards from the environment. Besides, the high-dimensional
+8715
+
+===== PAGE 8 =====
+action space also stops model-free methods from success-
+fully dealing with the painting task. To further explore
+the capability of model-free methods, we improve origi-
+nal DDPG with a method inspired by PatchGAN. We split
+the images into patches before feeding the critic, then use
+the patch-level rewards to optimize the critic. We term this
+method as PatchQ. PatchQ boosts the sample efﬁciency and
+improves the performance of the agent by providing much
+more supervision signals in training.
+We show the performance of agents trained with dif-
+ferent algorithms in Figure
+8 (a). Model-based DDPG
+achieves the best performance, with 5× smaller ℓ2 dis-
+tance than DDPG with PatchQ, and 20× smaller ℓ2 dis-
+tance than the original DDPG. Although underperforming
+the model-based DDPG, DDPG with PatchQ outperforms
+original DDPG with signiﬁcant margins.
+5.4.2 Rewards
+ℓ2 distance is an alternative to the reward for training the ac-
+tor. We show the painting results of using WGAN rewards
+(Section
+3.3.3) and ℓ2 rewards in Figure 7 (d) and (e) re-
+spectively. The paintings with WGAN rewards show richer
+textures and look more vivid. Interestingly, we ﬁnd using
+WGAN rewards to train the agent can achieve a lower ℓ2
+loss on the testing data than using ℓ2 rewards directly. This
+shows that WGAN distance is a better metric in measur-
+ing the differences between paintings and real-world images
+than ℓ2 distance.
+5.4.3 Stroke Number and Action Bundle
+The stroke number for painting is critical for the ﬁnal paint-
+ing quality, especially for texture-rich images. We train
+agents that can paint 100, 200, 400 and 1000 strokes, and
+the testing loss curves are shown in Figure
+8 (c). It’s ob-
+served that larger stroke numbers contribute to better paint-
+ing quality. We show the paintings with 200-strokes and
+1000-strokes in Figure
+8 (e) and (f) respectively. To the
+best of our knowledge, few methods can handle such a large
+number of strokes. More strokes help reconstruct the details
+in the paintings.
+We show test loss curves of several settings of Action
+Bundle in Figure
+8 (b). We ﬁnd that making the agent
+predict ﬁve strokes in one bundle achieves the best perfor-
+mance. We conjecture that increasing strokes number in one
+bundle helps the agent to build long-term plans as there will
+be fewer rounds of decision, even though it will increase the
+difﬁculty in a single round of decision. Thus, to achieve a
+trade-off, a few strokes in one bundle is a good setting for
+the agent. Experiments determine that setting ﬁve actions in
+an Action Bundle is optimal in our setting for the painting
+task.
+5.4.4 Alternative Stroke Representations
+Besides the QBC, we ﬁnd alternative stroke representations
+can also be well mastered by the agent, including straight
+strokes, circles, and triangles. We train one neural renderer
+for each stroke representation. The paintings with these ren-
+derers are shown in Figure
+10. The QBC strokes produce
+excellent visual effects. Meanwhile, other stroke designs
+create different artistic effects. Although with different
+styles, the paintings still resemble the target images. This
+shows that our network architecture generalizes to other
+choices of stroke designs.
+Also, by restricting the transparency of strokes, we can
+get paintings with different stroke effects, such as ink paint-
+ing and oil painting as shown in Figure
+7 (c).
+The target
+ QBC
+ Straight
+Stroke
+Triangle
+ Circle
+Figure 10: CelebA paintings using different stroke designs.
+6. Conclusion
+In this paper, we train agents that decompose the target
+image into an ordered sequence of strokes in a fashion mim-
+icking human painting processes on canvases. The training
+is based on the Deep Reinforcement Learning framework,
+which encourages the agent to make long-term plans for
+sequential stroke-based painting. In addition, we build a
+differentiable neural renderer to render the strokes, which
+allows using model-based DRL algorithms to further im-
+prove the quality of recreated images. The learned agent can
+predict hundreds or even thousands of strokes to generate
+a vivid painting. Experimental results show that our model
+can handle multiple types of target images and achieve good
+performance in painting real-world images like human por-
+traits and texture-rich natural scenes.
+References
+[1] Martin Arjovsky, Soumith Chintala, and L ´eon Bottou.
+Wasserstein generative adversarial networks. In Proceedings
+of the 34th International Conference on Machine Learning-
+V olume 70, pages 214–223. JMLR. org, 2017.
+4
+[2] Alex Braylan, Mark Hollenbeck, Elliot Meyerson, and Risto
+Miikkulainen. Frame skip is a powerful parameter for learn-
+ing to play atari. In Workshops at the Twenty-Ninth AAAI
+Conference on Artiﬁcial Intelligence , 2015.
+4
+8716
+
+===== PAGE 9 =====
+[3] Y ajing Chen, Shikui Tu, Y uqi Yi, and Lei Xu. Sketch-
+pix2seq: a model to generate sketches of multiple categories.
+arXiv preprint arXiv:1709.04121, 2017.
+1
+[4] Y aroslav Ganin, Tejas Kulkarni, Igor Babuschkin, SM Ali
+Eslami, and Oriol Vinyals. Synthesizing programs for im-
+ages using reinforced adversarial learning. In International
+Conference on Machine Learning , pages 1652–1661, 2018.
+1, 2, 6, 7
+[5] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing
+Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and
+Y oshua Bengio. Generative adversarial nets. In Advances
+in neural information processing systems, pages 2672–2680,
+2014.
+1
+[6] Ishaan Gulrajani, Faruk Ahmed, Martin Arjovsky, Vincent
+Dumoulin, and Aaron C Courville. Improved training of
+wasserstein gans. In Advances in Neural Information Pro-
+cessing Systems, pages 5767–5777, 2017.
+5
+[7] David Ha and Douglas Eck. A neural representation of
+sketch drawings. arXiv preprint arXiv:1704.03477 , 2017.
+1, 2
+[8] David Ha and J ¨urgen Schmidhuber. Recurrent world mod-
+els facilitate policy evolution. In S. Bengio, H. Wallach, H.
+Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett,
+editors, Advances in Neural Information Processing Sys-
+tems 31 , pages 2451–2463. Curran Associates, Inc., 2018.
+https://worldmodels.github.io. 4
+[9] Paul Haeberli. Paint by numbers: Abstract image represen-
+tations. In ACM SIGGRAPH computer graphics, volume 24,
+pages 207–214. ACM, 1990. 2
+[10] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+Deep residual learning for image recognition. In Proceed-
+ings of the IEEE conference on computer vision and pattern
+recognition, pages 770–778, 2016.
+5
+[11] Aaron Hertzmann. Painterly rendering with curved brush
+strokes of multiple sizes. In Proceedings of the 25th an-
+nual conference on Computer graphics and interactive tech-
+niques, pages 453–460. ACM, 1998.
+2
+[12] Aaron Hertzmann. A survey of stroke-based rendering.
+IEEE Computer Graphics and Applications , 23(4):70–81,
+July 2003. 2
+[13] Sergey Ioffe and Christian Szegedy. Batch normalization:
+accelerating deep network training by reducing internal co-
+variate shift. In Proceedings of the 32nd International Con-
+ference on International Conference on Machine Learning-
+V olume 37, pages 448–456. JMLR. org, 2015.
+5
+[14] Phillip Isola, Jun-Y an Zhu, Tinghui Zhou, and Alexei A
+Efros. Image-to-image translation with conditional adver-
+sarial networks. In Proceedings of the IEEE conference on
+computer vision and pattern recognition , pages 1125–1134,
+2017.
+5
+[15] Diederik P Kingma and Jimmy Ba. Adam: A method for
+stochastic optimization. arXiv preprint arXiv:1412.6980 ,
+2014. 7
+[16] Y ann LeCun. The mnist database of handwritten digits.
+http://yann. lecun. com/exdb/mnist/, 1998. 3, 6
+[17] Christian Ledig, Lucas Theis, Ferenc Huszar, Jose Caballero,
+Andrew Cunningham, Alejandro Acosta, Andrew Aitken,
+Alykhan Tejani, Johannes Totz, and Zehan Wang. Photo-
+realistic single image super-resolution using a generative ad-
+versarial network. 2016.
+1
+[18] Christian Ledig, Lucas Theis, Ferenc Husz ´ar, Jose Caballero,
+Andrew Cunningham, Alejandro Acosta, Andrew Aitken,
+Alykhan Tejani, Johannes Totz, Zehan Wang, et al. Photo-
+realistic single image super-resolution using a generative ad-
+versarial network. In Proceedings of the IEEE conference on
+computer vision and pattern recognition , pages 4681–4690,
+2017.
+4
+[19] Timothy P Lillicrap, Jonathan J Hunt, Alexander Pritzel,
+Nicolas Heess, Tom Erez, Y uval Tassa, David Silver, and
+Daan Wierstra. Continuous control with deep reinforcement
+learning. arXiv preprint arXiv:1509.02971, 2015.
+2
+[20] Liang Lin, Kun Zeng, Han Lv, Yizhou Wang, Yingqing Xu,
+and Song-Chun Zhu. Painterly animation using video se-
+mantics and feature correspondence. In Proceedings of the
+8th International Symposium on Non-Photorealistic Anima-
+tion and Rendering, pages 73–80. ACM, 2010.
+2
+[21] Peter Litwinowicz. Processing images and video for an
+impressionist effect. In Proceedings of the 24th annual
+conference on Computer graphics and interactive tech-
+niques, pages 407–414. ACM Press/Addison-Wesley Pub-
+lishing Co., 1997.
+2
+[22] Rosanne Liu, Joel Lehman, Piero Molino, Felipe Petroski
+Such, Eric Frank, Alex Sergeev, and Jason Y osinski. An
+intriguing failing of convolutional neural networks and the
+coordconv solution. In Advances in Neural Information Pro-
+cessing Systems, pages 9628–9639, 2018.
+5
+[23] Ziwei Liu, Ping Luo, Xiaogang Wang, and Xiaoou Tang.
+Deep learning face attributes in the wild. In Proceedings of
+International Conference on Computer Vision (ICCV) , De-
+cember 2015. 3, 6
+[24] Y uval Netzer, Tao Wang, Adam Coates, Alessandro Bis-
+sacco, Bo Wu, and Andrew Y Ng. Reading digits in natural
+images with unsupervised feature learning. In NIPS work-
+shop on deep learning and unsupervised feature learning ,
+volume 2011, page 5, 2011.
+3, 6
+[25] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, San-
+jeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy,
+Aditya Khosla, Michael Bernstein, Alexander C. Berg, and
+Li Fei-Fei. ImageNet Large Scale Visual Recognition Chal-
+lenge. International Journal of Computer Vision (IJCV) ,
+115(3):211–252, 2015.
+3, 6
+[26] Tim Salimans and Durk P Kingma. Weight normalization: A
+simple reparameterization to accelerate training of deep neu-
+ral networks. In Advances in Neural Information Processing
+Systems, pages 901–909, 2016.
+5
+[27] Wenzhe Shi, Jose Caballero, Ferenc Husz ´ar, Johannes Totz,
+Andrew P Aitken, Rob Bishop, Daniel Rueckert, and Zehan
+Wang. Real-time single image and video super-resolution
+using an efﬁcient sub-pixel convolutional neural network. In
+Proceedings of the IEEE conference on computer vision and
+pattern recognition, pages 1874–1883, 2016.
+5
+[28] David Silver, Guy Lever, Nicolas Heess, Thomas Degris,
+Daan Wierstra, and Martin Riedmiller. Deterministic policy
+gradient algorithms. In ICML, 2014.
+4
+8717
+
+===== PAGE 10 =====
+[29] Jifei Song, Kaiyue Pang, Yi-Zhe Song, Tao Xiang, and Tim-
+othy M Hospedales. Learning to sketch with shortcut cy-
+cle consistency. In Proceedings of the IEEE Conference on
+Computer Vision and Pattern Recognition , pages 801–810,
+2018.
+1
+[30] Christopher JCH Watkins and Peter Dayan. Q-learning. Ma-
+chine learning, 8(3-4):279–292, 1992. 4
+[31] Sitao Xiang and Hao Li. On the effects of batch and weight
+normalization in generative adversarial networks. arXiv
+preprint arXiv:1704.03971, 2017. 5
+[32] Ning Xie, Hirotaka Hachiya, and Masashi Sugiyama. Artist
+agent: A reinforcement learning approach to automatic
+stroke generation in oriental ink painting. IEICE TRANSAC-
+TIONS on Information and Systems, 96(5):1134–1144, 2013.
+2
+[33] Raymond A Y eh, Chen Chen, Teck Yian Lim, Alexander G
+Schwing, Mark Hasegawa-Johnson, and Minh N Do. Seman-
+tic image inpainting with deep generative models. In Pro-
+ceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition, pages 5485–5493, 2017.
+4
+[34] Ningyuan Zheng, Yifan Jiang, and Dingjiang Huang. Stro-
+kenet: A neural painting environment. In International Con-
+ference on Learning Representations, 2019. 1, 2
+[35] Tao Zhou, Chen Fang, Zhaowen Wang, Jimei Y ang, Byung-
+moon Kim, Zhili Chen, Jonathan Brandt, and Demetri Ter-
+zopoulos. Learning to doodle with deep q-networks and
+demonstrated strokes.
+1, 2
+8718
