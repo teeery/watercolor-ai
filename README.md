@@ -4,6 +4,32 @@
 
 **一句话定位**：agent 水彩画家 —— LLM 管意图，介质引擎管水，时间线管叙事。
 
+## 作品与作画过程
+
+先看作品，再读理念。三幅画全部由仓库脚本一键复现（`npm run demo` / `agent` / `copy`）。
+
+### 《树与池塘》· 32 笔手绘全景 · vision 8.8/10
+
+![《树与池塘》终稿](paper/figures/fig_demo_full.png)
+
+![作画全过程：一笔一笔画完](assets/panorama_evolution.gif)
+
+### 《三个柿子》· LLM 仅凭 stroke 协议写出的 75 笔静物 · vision 闭环 11 版定稿
+
+![《三个柿子》定稿](paper/figures/fig_still_life_final.png)
+
+![作画全过程：LLM 构思 → vision 批评 → 改笔](assets/persimmons_evolution.gif)
+
+### 《乡村田野》· 83 笔临摹，笔序即叙事 · 6 轮闭环 5.0 → 6.5
+
+![原作（左）vs 引擎临摹（右）](paper/figures/fig_field_pair.png)
+
+![逐笔作画过程](assets/field_strokes.gif)
+
+### 水彩的美是时间函数 · 10 秒真实干燥
+
+![干燥时间线：蒸发 → 咖啡环 → 固着](assets/drying_timeline.gif)
+
 ## 为什么存在
 
 - diffusion 强在采样，但过程不可见、不可干预、不可复现；
@@ -78,6 +104,7 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 ```
 ├── src/        # 引擎源码: core(介质) / color(颜色) / brush(笔触) / paper(纸纹) / io(PNG·GIF) / studio(装配)
 ├── demo/       # 场景与运行器: 全景 / 三柿子 / 乡村田野 / 色卡 / 技法面板 / 探针与测试
+├── assets/     # README 展示用预览图(GIF 时序预览,由 demo/make-readme-gifs.py 生成)
 ├── docs/       # 规格与范式文档 + COORDINATION.md(双会话协作契约,已归档)
 ├── research/   # 调研: papers(论文) / data(标准数据) / notes(精读) / probes(OWS 探测与抓取残料)
 ├── chronicle/  # 项目史(六个阶段开发日志)
