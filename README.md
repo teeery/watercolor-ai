@@ -23,52 +23,54 @@
 - **画 = 程序**：笔触列表是这幅画的源代码，引擎是解释器。同一张画可以换纸、换倾斜、重放干燥过程、在 8K 重渲染。
 - **作画即内容**：真实的干燥时间线让"进化动图"不再是几张图的轮播，而是时间流逝本身。
 
-## 当前状态（Phase 0 完成 ✅ + 光谱色彩系统）
+## 当前状态（v0.3.0 · 最小发布存档版）
 
-介质引擎尖峰已交付，纯 JS + typed array，**零依赖**，Node 可跑（浏览器兼容设计）：
+> 2026-08-17 收工存档。恢复路径见文末「下一步」。
 
-- 五个感知签名工件全部实现并有独立视觉验证：湿扩散、边缘沉积线、回流开花（cauliflower/backrun）、颗粒聚集、干燥时间线
-- **双颜色系统**：RGB 三通道 KM（基线）与 **16 波段光谱 KM**（400-700nm，每支颜料一条光谱，CIE 1931 + D65 → XYZ → sRGB）。全强度 24 色平均 ΔE：RGB 5.5 → **光谱 3.2**。切换：`COLOR_SYSTEM=spectral node demo/render-demo.js`
-- **分层架构**（见 `docs/architecture.md`）：core（介质）/ color（颜色）/ brush（笔触）/ paper / io / studio 六部，颜色与笔触可独立异步升级
-- 手绘 31 笔 demo 场景（`demo/scene.js`）：湿铺天空、罩染远山、干皴树冠、池塘趁湿滴清水 ×2、重颗粒群青沉淀、洗色
-- **24 色卡**（`demo/color-chart.js`）：RGB | 光谱 | 平涂参照三栏并排 + CIELAB 指标（`demo/color-metrics.js`）——色彩回归之锚
-- 产出（`out/`）：
-  - `demo_final.png` / `demo_final_spectral.png` — 完整画面（1280×960）
-  - `evolution.gif` / `drying_timeline.gif` — 作画过程 + 10 秒真实干燥动图（GIF 已修，PIL 验证）
-  - `compare.png` — 引擎 vs 平涂 SVG 模拟对比
-  - `effects_sheet.png` — 8 格技法面板（平涂/湿接湿/罩染/干皴/回流/颗粒/边缘/洗色）
-  - `color_chart_compare.png` — 24 色卡三栏（RGB | 光谱 | 平涂参照）
-  - `crop_pond.png` / `crop_granulation.png` — 回流开花与颗粒特写
+介质引擎与接入层原型都已交付，纯 JS + typed array，**零依赖**，Node 可跑（浏览器兼容设计）：
+
+- **介质引擎五工件 + 升级 M0-M5**：湿扩散、边缘沉积线、回流开花、颗粒聚集、干燥时间线；M0 位级确定与性能 → M1 各向异性纸纹（σ 钉扎/κ 渗透）→ M2 岸线算子与宏观破圆 → M3 bloom 曲率圆瓣化 → M4 盐花/硬边/纸纹预设/重力淌色/lift → M5 颜料物性四字段（湿中混色/分离/再湿率）。全景 vision **2.0 → 8.8**
+- **双颜色系统**：RGB 三通道 KM（基线）与 **16 波段光谱 KM**（400-700nm，每支颜料一条光谱，CIE 1931 + D65 → XYZ → sRGB）。全强度 24 色平均 ΔE：RGB 5.5 → **光谱 3.2**；色卡视觉 7.2 → 8.5。切换：`COLOR_SYSTEM=spectral node demo/render-demo.js`
+- **笔刷动力学 v2.0**：水库 / N 毛模型 / 分桶沉积 / 一笔内时间——干笔飞白、毛尖折线、干皴硬角成立
+- **stroke 协议 v0.3 + 端到端实测**：LLM 只通过协议画出 75 笔静物《三个柿子》（vision 闭环 11 版定稿）；83 笔临摹《乡村田野》（poly 原语 + 全记录运行器，6 轮闭环 5.0→6.5 遇平台期）
+- **反思与论文**：平台期五轮病灶推演（`docs/reflection-painter-loop.md`）→ 下一步锚定 Oracle 1；成果论文稿 `paper/paper.md`（12 图，中英摘要）
+- **回归之锚**（全部可复现）：`demo/color-metrics.js`（色彩）、`demo/color-chart.js`（色卡）、`demo/effects.js`（技法面板）、`demo/render-demo.js`（全景）、`demo/showcase.js`（15 件能力集）、`out-baseline-m0/`（M0 基线快照）
 
 ### 诚实评分（vision 独立评审）
 
 | 对象 | 分数 | 说明 |
 |---|---|---|
-| 引擎全景观感 | **6.5/10** | 背景湿铺 ≈ 8 分；物体笔触 4-5 分（Phase 1 的活） |
+| 引擎全景（M1-M5 后） | 7.5 → 8.5 → **8.8/10** | M5 混色轮 8.8 全场新高 |
 | 回流开花特写 | 6.5-7/10 | 闭环深色蕾丝 + 浅色水渍心成立 |
-| 24 色卡（RGB 系统） | 7.2/10 | 色彩准确自然；运笔同模与重颗粒待立 |
-| 24 色卡（光谱系统） | **8.5/10** | 约 17-18 支可盲认；全强度平均 ΔE 5.5→3.2 |
-| Open-Watercolor-Sim（对照基准） | 2.5-3/10 | 官方 demo "带颜色的雾" |
+| 24 色卡 | RGB 7.2 → 光谱 **8.5/10** | 约 17-18 支可盲认 |
+| 干笔（brush v2.0） | 7/10 | 前段真干透、尾断飞白成立 |
+| 《三个柿子》（agent 纯协议） | 11 版闭环定稿 | 75 笔，LLM 不碰引擎不偷看渲染 |
+| 《乡村田野》临摹 | 5.0 → 5.5 → 6.0 → 6.2 → **6.5 平台** | 差在结构细节笔法——反思小论文的病历 |
+| Open-Watercolor-Sim（对照） | 2.5-3/10 | 官方 demo "带颜色的雾" |
 
-门槛解读：**"水是真的"已过半**（缩略图一眼是松散水彩小品；水痕会长出来），色彩"准"已足而"艳/深/身份"尚在途中——光谱系统是向史明克级迈出的第一步。
+门槛解读：**"水是真的"已过大半**；**"手会画画"已起步**（agent 能闭环改到定稿）；**瓶颈已从介质层转移到笔触设计与意图层**——平台期的病灶已推演清楚，下一步是 Oracle 1（可画性验证），见 `docs/reflection-painter-loop.md` 终局。
 
 ## 项目史
 
-所作之事，尽录于 **`chronicle/`**（平实开发日志，五个阶段文件 + 参考速查）：探测与引擎 → 回流与笔触 → 色卡与 KM → 光谱与分层 → 参数/评分/bug 速查。
+所作之事，尽录于 **`chronicle/`**（平实开发日志，六个阶段文件 + 参考速查）：探测与引擎 → 回流与笔触 → 色卡与 KM → 光谱与分层 → 参数/评分/bug 速查 → **接入实测与反思**。
 
 ## 快速开始
 
 ```bash
-node demo/render-demo.js   # 完整场景 → out/demo_final.png + 两个动图
+npm test                   # 冒烟：完整渲染一遍
+node demo/render-demo.js   # 全景《树与池塘》→ out/demo_final.png + 两个动图
+node demo/agent-paint.js   # 《三个柿子》agent 定稿 → out/agent_still_life.png + 动图
+node demo/copy-paint.js    # 《乡村田野》83 笔临摹 → out/copy-frames/ + 终稿 + 动图
 node demo/effects.js       # 8 格效果测试面板
 node demo/color-chart.js   # 24 色卡三栏（RGB | 光谱 | 平涂参照）
 node demo/color-metrics.js # CIELAB 双系统对照（色彩回归基准）
 node demo/compare.js       # 引擎 vs 平涂对比图
+node demo/showcase.js      # 15 件能力展示集 → out/showcase/
 node demo/crop.js          # 回流开花 / 颗粒特写
 
 # 光谱颜色系统（16 通道，慢约 2.7 倍）：
 #   PowerShell: $env:COLOR_SYSTEM="spectral"; node demo/render-demo.js
-#   或改 package.json 里 demo:spectral 脚本
+#   或 npm run demo:spectral（cmd）
 ```
 
 ## 仓库布局
@@ -76,18 +78,25 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - `chronicle/` — **项目史（仿《明史》四体：本纪/志/表/列传）**
 - `docs/paradigm.md` — 范式：从对话中沉淀的认知精华
 - `docs/architecture.md` — **分层架构与升级缝（松耦合升级的正式规格）**
-- `docs/engine.md` — 强引擎规格：五个工件 + **stroke 协议 v0.2** + 工件缺口 backlog
+- `docs/engine.md` — 强引擎规格：五个工件 + **stroke 协议 v0.3** + 工件缺口 backlog
 - `docs/engine-js.md` — JS 引擎实现说明（数据结构、管线、bloom 算子、参数表、已知问题）
 - `docs/watercolor_engine_spec.md` — Hobbs/Curtis 算法规格（研究产出，公式有出处）
 - `docs/agent-loop.md` — 接入层：agent 笔序 + vision 阶段批评（Phase 1）
+- `docs/reflection-painter-loop.md` — **反思小论文**：平台期五轮病灶推演与处方——下一步的裁决依据
 - `docs/taste.md` — 品味观与手文件：品味不生成、被继承被选择；人是唯一神谕；产品四档（看/画/同画/传）
 - `docs/teaching-mvp.md` — Phase 1 第一刀：教学回放 MVP 的范围切割（教不会画的）
+- `docs/paintability.md` — 可画性基准：十基元电池 + oracle 下限——先证引擎可画，再谈 AI
+- `docs/paintable-representation.md` — 可绘制表征 Z + 逆水彩分解——画家操作的不是对象
 - `docs/lessons.md` — dsh-studio 实战教训（本项目的需求输入）
+- `docs/predecessors.md` — 介质引擎/流体求解前辈调研（Tyler Hobbs、Rebelle、MoXi 等）
+- `docs/predecessors-agents.md` — agent 画家论文册（Intelli-Paint、Inverse Painting）
 - `docs/roadmap.md` — 尖峰 → 接入 → 产品化
 - `src/core/` — 介质引擎（通道数泛化）；`src/color/` — 颜色系统（RGB/光谱）；`src/brush/` — 笔触；`src/paper/` — 纸纹；`src/io/` — PNG/GIF；`src/studio/` — 编排装配
-- `demo/` — 场景与运行器
+- `demo/` — 场景与运行器（`scene.js` 手绘全景、`agent-scene.js` 三柿子、`copy-scene.js` 乡村田野）
 - `probe/` — Open-Watercolor-Sim 探测全记录（评估、源码、冒烟脚本、对比图）
-- `research/` — Curtis SIGGRAPH'97 专利 US6198489 全文 + CIE 1931/D65 标准数据
+- `research/` — 论文文本与精读、CIE 1931/D65 标准数据（PDF 原件按惯例仅本地）
+- `paper/` — 成果论文源稿 + 12 幅配图 + 导出脚本
+- `out-baseline-m0/` — M0 位级确定基线产物快照（后续升级的回归对照）
 
 ## 关联项目
 
@@ -95,6 +104,9 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - dsh-studio — 手（SVG 前身；教训见 `docs/lessons.md`）
 - DeepSeek Harness — 宿主运行时
 
-## 下一步
+## 下一步（存档后恢复路径）
 
-见 `docs/roadmap.md`：**Phase 1 — 接入 LLM**（stroke 协议 v0.2 定稿、dsh-studio 循环骨架移植、vision 阶段批评、一句话到完整水彩的端到端 demo）。
+1. 读 `chronicle/06-接入实测与反思.md` 与 `docs/reflection-painter-loop.md` 终局（病灶 / 处方 / 未决清单）。
+2. **Oracle 1**：可微平面笔触拟合《乡村田野》——回答"表示够不够"，三分支裁决（见 `docs/paintability.md`、`docs/paintable-representation.md`）。
+3. 可画性十基元电池出第一版成绩卡（agent 循环上线前的硬前置）。
+4. 之后回到 Phase 1 接入：stroke 协议定稿、dsh-studio 循环骨架移植、vision 阶段批评接入（`docs/agent-loop.md`）。

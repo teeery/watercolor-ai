@@ -82,6 +82,7 @@ brush  → paper
 2. `demo/color-metrics.js` — CIELAB ΔE/ΔC* 双系统对照——色彩之数。
 3. `demo/effects.js` — 8 格技法面板——笔触与水法之锚。
 4. `demo/render-demo.js` — 31 笔全景 + 干燥动图——整体之锚。
+5. `demo/paintability/`（待建）— 十基元正交电池 + oracle 寻优下限——可画性之锚（见 `docs/paintability.md`）。
 
 ## 视角二：能力层（系统级）
 
@@ -92,7 +93,7 @@ brush  → paper
 | 层 | 职责 | 现状 | 代码落点 |
 |---|---|---|---|
 | 介质层 | 水行为：湿扩散、边缘沉积、回流开花、颗粒聚集、干燥时间线 | ✅ 交付 | `src/core/` |
-| 意图层 | 构图、笔序、技法、留白判断、改笔决策 | 🔶 Phase 1 | `src/agent/`（待建） |
+| 意图层 | 构图、笔序、技法、留白判断、改笔决策；中间表示 = 可绘制表征 Z（`docs/paintable-representation.md`） | 🔶 Phase 1 | `src/agent/`（待建） |
 | 眼睛层 | 看真实画布、局部批评、多候选变体选 1 | 🔶 Phase 1 | `src/critique/`（待建） |
 | 资产层 | 颜料库、纸预设、技法词典 | 🔶 部分：24 色颜料库 + 程序化光谱 | `src/color/`；数据化后搬 `src/assets/` |
 | 时间与记忆层 | 录制/回放/暂停/重渲染、会话日志、过程量化 | 🔶 引擎有时间戳；录制回放 Phase 2 | `src/time/`（待建） |

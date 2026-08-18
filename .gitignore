@@ -17,6 +17,9 @@ probe/ows/gif-test-*.gif
 Thumbs.db
 .DS_Store
 
-# 论文原始 PDF(本地资产,文本提取件 .txt 已入库)
+# 论文原始 PDF 与网页残料(本地资产,文本提取件 .txt 已入库)
 research/*.pdf
+research/papers/**/*.pdf
+research/papers/**/*.html
+research/papers/**/*.bin
 

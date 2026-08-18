@@ -12,9 +12,19 @@
 
 - **第一刀（已定）**：教学回放 MVP——教不会画的；范围切割与验收见 `docs/teaching-mvp.md`。
 - stroke JSON 协议定稿 + 颜料 / 纸预设库。
+- 可绘制表征 Z 的 schema v0.1 与简版 Z 编译路径（意图与笔序的中间层，见 `docs/paintable-representation.md`）——延展方向，第一版不要求全套。
 - dsh-studio 循环骨架移植（阶段制、预算、keep-best、诚实守则）。
 - vision 阶段批评接入；限流降级路径。
 - 交付：一个从"一句话"到"完整水彩 + 时间线动图 + gallery"的端到端 demo。
+
+## 可画性基准（前置于 AI 优化，引擎侧）
+
+> "先证引擎可画，再让 agent 优化"——详见 `docs/paintability.md`。此前漏掉的核心问题：动作集合与介质动力学能否稳定产生目标图像（控制论：可控性 / 介质可达域）。
+
+- 十个正交基元（直线/尖叶/T 接/边缘谱/渐变/罩染/条纹/负形/湿中边界/干燥保真）+ oracle 最优笔触搜索，测目标→最终干画最低误差；
+- 每基元一张成绩卡（目标 | 最优干画 | 误差 | 失败模式）；失败项转 engine.md backlog——oracle 画不出的，锅在引擎不在 agent；
+- 交付：`demo/paintability/` 运行器 + `out/paintability/` 成绩卡 + 展示说明页；
+- 与 Phase 1 顺序：教学 MVP 不动引擎、可先行；agent 循环上线前必须出第一版基元成绩。
 
 ## Phase 2 — 产品化
 

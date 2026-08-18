@@ -57,6 +57,8 @@
 | P2 | 纤维方向性颗粒 | 细噪×纸谷 → 加方向场 |
 | P3 | 实测光谱、halo、全物理 NS | 极晚或永远不做 |
 
+新缺口来源：**可画性基准失败项**（见 `docs/paintability.md`）——oracle 最优求解器逼近不了的基元即引擎债；先证可画，再谈 agent。
+
 ## stroke 指令协议（v0.2）
 
 agent（LLM）与引擎之间的界面。一幅画 = 一份有序的 stroke JSON 列表 = 画的源代码。设计原则见 `docs/architecture.md` 第五节。
