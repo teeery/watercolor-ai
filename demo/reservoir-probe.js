@@ -1,10 +1,10 @@
-// probe/reservoir-probe.js — v1 水库状态机数值探针（独立运行，不依赖 src/）
+// demo/reservoir-probe.js — v1 水库状态机数值探针（独立运行，不依赖 src/）
 // 验证四件事：
 //   ① dt = Δs/v 在 v→0（犹豫/停笔）处发散，无钳制时水库击穿（负值/超发）
 //   ② 钳制 + 守恒后，三种速度剖面的 wLoad(s)/飞白 grainBreak(s)/wDep(s) 曲线形态
 //   ③ 释放总量守恒：Σ dw ≤ 初始装水
 //   ④ 分桶沉积的真实调用数：量化 water×amount 后 distinct 组合数
-// 用法：node probe/reservoir-probe.js
+// 用法：node demo/reservoir-probe.js
 // 注：数值全部为笔刷层标量预算（640×480 网格、半分辨率模拟口径）
 
 const L = 300;          // 路径长 px

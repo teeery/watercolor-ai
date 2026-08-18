@@ -1,4 +1,4 @@
-# probe/download-papers.py — 稳健下载(分块读+重试+进度)两篇论文 PDF
+# research/probes/download-papers.py — 稳健下载(分块读+重试+进度)两篇论文 PDF
 import urllib.request, time, sys
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"

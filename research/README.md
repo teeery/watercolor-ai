@@ -57,9 +57,16 @@
 | papers-candidates.md | 论文候选清单（brush 会话） |
 | 色彩文献调研与差距分析.md | 色彩线论文调研：Mixbox/Berns/NPAR'17 精读 + 逐项对照 + 差距清单 |
 
-## probes — 探测残料
+## probes — 探测残料与评估
 
-早期抓取/探测实验的中间产物（baidu/bing 检索页、allorigins 探测、CT 探测脚本、OW-Sim 冒烟），仅存档。
+抓取/探测实验的残料与评估，仅存档：
+
+- `ows/` —— Open-Watercolor-Sim 全套探测（源码、shim、冒烟脚本、调参版渲染图）
+- `OWS-评估.md` —— OWS 对照基准评估结论（自研引擎胜出，路线决策依据）
+- `download-papers.py` / `fetch-batch.py` / `extract-text.py` —— 论文下载与 PDF 文本提取脚本（pypdf，venv 已装）
+- `Gif.h` / `GifDecode.c` —— GIF 解码 C 参照实现（GIF bug 排查期）
+- `ip_text.txt` / `invpaint_text.txt` —— Intelli-Paint / Inverse Painting 全文提取件
+- 其余早期抓取残料（baidu/bing 检索页、allorigins 探测、CT 探测脚本）
 
 ## 数据源原件（git 外，本地保留）
 

@@ -1,4 +1,4 @@
-// probe/mask-isolate-test.js — 纯 mask 层隔离:10 戳平顶椭圆 max-merge,输出 PNG 供检查弧纹
+// demo/mask-isolate-test.js — 纯 mask 层隔离:10 戳平顶椭圆 max-merge,输出 PNG 供检查弧纹
 import { paintEllipse } from "../src/brush/footprints.js";
 import { writePNG } from "../src/io/png.js";
 

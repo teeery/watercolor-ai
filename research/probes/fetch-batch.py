@@ -1,4 +1,4 @@
-# probe/fetch-batch.py — 批量下载候选论文(分块+重试)
+# research/probes/fetch-batch.py — 批量下载候选论文(分块+重试)
 import urllib.request, time
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"

@@ -1,5 +1,5 @@
-// probe/brush-core-test.js — 笔刷动力学核心逻辑冒烟测试(守恒/单调/确定性/verb/配方)
-// 用法: node probe/brush-core-test.js   (跑挂 = 非零退出)
+// demo/brush-core-test.js — 笔刷动力学核心逻辑冒烟测试(守恒/单调/确定性/verb/配方)
+// 用法: node demo/brush-core-test.js   (跑挂 = 非零退出)
 import { Reservoir } from "../src/brush/reservoir.js";
 import { makeMotion, legacyPressure, VERBS } from "../src/brush/motion.js";
 import { resolveBrush, RECIPES, isNewPipeline } from "../src/brush/brush.js";

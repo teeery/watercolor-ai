@@ -63,4 +63,4 @@ Curtis 1997 = **有序 glaze 集合**,每层 glaze 独立跑三层流体模拟(�
 
 ## 7. 网络获取方法(环境备忘)
 
-本沙箱 Windows PowerShell 5.1 的 .NET 网络栈对外 HTTPS 全面失效(连接被关闭),**Python 3.11 urllib 正常**。可用路径:`probe/download-papers.py`(分块读 + 重试)与 `probe/extract-text.py`(pypdf 提取,venv 已装 pypdf)。UW 服务器慢,必须分块读并耐心重试;citeseerx / web.archive.org / UBC 从本机不可达(超时/403),Wetbrush 全文需人工下载后放入 `research/papers/medium/wetbrush2015.pdf`。
+本沙箱 Windows PowerShell 5.1 的 .NET 网络栈对外 HTTPS 全面失效(连接被关闭),**Python 3.11 urllib 正常**。可用路径:`research/probes/download-papers.py`(分块读 + 重试)与 `research/probes/extract-text.py`(pypdf 提取,venv 已装 pypdf)。UW 服务器慢,必须分块读并耐心重试;citeseerx / web.archive.org / UBC 从本机不可达(超时/403),Wetbrush 全文需人工下载后放入 `research/papers/medium/wetbrush2015.pdf`。

@@ -2,13 +2,14 @@
 
 > 本文件是给两个并发会话看的**共享工作区规则**,目的:隔离并行、零冲突、可追溯。
 > 现状验证:两个会话已在同一工作区、同一 `brush` 分支上并行提交 15+ 个 commit,历史线性零冲突——此契约把已验证的做法固化成文字。
+> 2026-08-17 起双会话已合并为单线开发,本契约作为协作方式的文字记录随 v0.3.0 存档于 `docs/`。
 
 ## 1. 目录所有权(谁的文件谁动)
 
 | 路径 | 所有者 | 说明 |
 |---|---|---|
 | `src/brush/`、`docs/brush-dynamics.md` | **brush 会话** | 笔刷动力学 v2 设计与实现 |
-| `research/*.md`、`research/*.txt`、`probe/` | **brush 会话** | 文献精读归档、数值探针 |
+| `research/*.md`、`research/*.txt`、`research/probes/`、`demo/*-probe.js`、`demo/*-test.js` | **brush 会话** | 文献精读归档、探测残料、数值探针与冒烟测试 |
 | `src/core/`、`src/paper/`、`docs/medium-upgrade.md`、`docs/engine-js.md`、`demo/bench.js` 等 | **medium-upgrade 会话** | 介质核心、纸纹、性能 |
 | `src/color/`、`docs/*color*` | **color 会话** | 颜色系统 |
 | 其余共享文件(`docs/engine.md` 等) | 先到先改,改前读最新 | 交叉引用类小编辑 |

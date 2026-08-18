@@ -3,15 +3,16 @@ node_modules/
 .venv-ows/
 *.log
 
-# 渲染产物（可重新生成：node demo/*.js）
-out/
+# 渲染产物（可重新生成：node demo/*.js）;baseline-m0 为入库基线,例外保留
+out/*
+!out/baseline-m0/
 
 # 探测实验的中间产物（OWS 渲染图/官方 demo，源码与评估文档保留）
-probe/ows/*_out*/
-probe/ows/gif_frames/
-probe/ows/demo.gif
-probe/ows/demo.png
-probe/ows/gif-test-*.gif
+research/probes/ows/*_out*/
+research/probes/ows/gif_frames/
+research/probes/ows/demo.gif
+research/probes/ows/demo.png
+research/probes/ows/gif-test-*.gif
 
 # 系统文件
 Thumbs.db

@@ -1,6 +1,6 @@
 // 发射器与时间交错(brush dynamics v2 §2/§6/§8)——BrushState:沿弧长推进 → 分桶沉积 → interleave
 // 单位约定(§9):新管线几何以 1280×960 画布坐标为基准,×0.5 落到 640×480 模拟网格。
-// 引擎耦合:只调用 depositMask + 只读 W/paper(不改引擎,遵守 COORDINATION.md)。
+// 引擎耦合:只调用 depositMask + 只读 W/paper(不改引擎,遵守 docs/COORDINATION.md)。
 import { Reservoir } from "./reservoir.js";
 import { makeMotion } from "./motion.js";
 import { resolveBrush, RECIPES } from "./brush.js";
@@ -112,7 +112,7 @@ export class BrushState {
     this.tipReleasedTotal = 0; // charging 记账(跨 interleave 块累计)
   }
 
-  /** 湿纸反馈(只读引擎字段;COORDINATION.md 允许的读缝) */
+  /** 湿纸反馈(只读引擎字段;docs/COORDINATION.md 允许的读缝) */
   wetnessAt(x, y) {
     const { w, h, W, paper } = this.eng;
     const xi = x | 0, yi = y | 0;

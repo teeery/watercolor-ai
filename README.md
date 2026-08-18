@@ -34,7 +34,7 @@
 - **笔刷动力学 v2.0**：水库 / N 毛模型 / 分桶沉积 / 一笔内时间——干笔飞白、毛尖折线、干皴硬角成立
 - **stroke 协议 v0.3 + 端到端实测**：LLM 只通过协议画出 75 笔静物《三个柿子》（vision 闭环 11 版定稿）；83 笔临摹《乡村田野》（poly 原语 + 全记录运行器，6 轮闭环 5.0→6.5 遇平台期）
 - **反思与论文**：平台期五轮病灶推演（`docs/reflection-painter-loop.md`）→ 下一步锚定 Oracle 1；成果论文稿 `paper/paper.md`（12 图，中英摘要）
-- **回归之锚**（全部可复现）：`demo/color-metrics.js`（色彩）、`demo/color-chart.js`（色卡）、`demo/effects.js`（技法面板）、`demo/render-demo.js`（全景）、`demo/showcase.js`（15 件能力集）、`out-baseline-m0/`（M0 基线快照）
+- **回归之锚**（全部可复现）：`demo/color-metrics.js`（色彩）、`demo/color-chart.js`（色卡）、`demo/effects.js`（技法面板）、`demo/render-demo.js`（全景）、`demo/showcase.js`（15 件能力集）、`out/baseline-m0/`（M0 基线快照）
 
 ### 诚实评分（vision 独立评审）
 
@@ -75,7 +75,16 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 
 ## 仓库布局
 
-- `chronicle/` — **项目史（仿《明史》四体：本纪/志/表/列传）**
+```
+├── src/        # 引擎源码: core(介质) / color(颜色) / brush(笔触) / paper(纸纹) / io(PNG·GIF) / studio(装配)
+├── demo/       # 场景与运行器: 全景 / 三柿子 / 乡村田野 / 色卡 / 技法面板 / 探针与测试
+├── docs/       # 规格与范式文档 + COORDINATION.md(双会话协作契约,已归档)
+├── research/   # 调研: papers(论文) / data(标准数据) / notes(精读) / probes(OWS 探测与抓取残料)
+├── chronicle/  # 项目史(六个阶段开发日志)
+├── paper/      # 成果论文源稿 + 12 幅配图 + 导出脚本
+└── out/        # 渲染产物(不入库、可重新生成;out/README.md 是产物索引;baseline-m0/ 例外入库)
+```
+
 - `docs/paradigm.md` — 范式：从对话中沉淀的认知精华
 - `docs/architecture.md` — **分层架构与升级缝（松耦合升级的正式规格）**
 - `docs/engine.md` — 强引擎规格：五个工件 + **stroke 协议 v0.3** + 工件缺口 backlog
@@ -91,12 +100,12 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - `docs/predecessors.md` — 介质引擎/流体求解前辈调研（Tyler Hobbs、Rebelle、MoXi 等）
 - `docs/predecessors-agents.md` — agent 画家论文册（Intelli-Paint、Inverse Painting）
 - `docs/roadmap.md` — 尖峰 → 接入 → 产品化
-- `src/core/` — 介质引擎（通道数泛化）；`src/color/` — 颜色系统（RGB/光谱）；`src/brush/` — 笔触；`src/paper/` — 纸纹；`src/io/` — PNG/GIF；`src/studio/` — 编排装配
-- `demo/` — 场景与运行器（`scene.js` 手绘全景、`agent-scene.js` 三柿子、`copy-scene.js` 乡村田野）
-- `probe/` — Open-Watercolor-Sim 探测全记录（评估、源码、冒烟脚本、对比图）
+- `docs/COORDINATION.md` — 双会话协作契约（目录所有权/提交纪律/接口接触点；已随合并存档）
+- `demo/` — 场景与运行器（`scene.js` 全景、`agent-scene.js` 三柿子、`copy-scene.js` 乡村田野；`*-probe.js`/`*-test.js` 数值探针与冒烟测试）
+- `research/probes/` — Open-Watercolor-Sim 探测全记录（`ows/` + `OWS-评估.md`）与抓取/提取脚本
 - `research/` — 论文文本与精读、CIE 1931/D65 标准数据（PDF 原件按惯例仅本地）
 - `paper/` — 成果论文源稿 + 12 幅配图 + 导出脚本
-- `out-baseline-m0/` — M0 位级确定基线产物快照（后续升级的回归对照）
+- `out/` — 渲染产物（见 `out/README.md` 索引；`out/baseline-m0/` 为 M0 位级确定基线快照，例外入库）
 
 ## 关联项目
 

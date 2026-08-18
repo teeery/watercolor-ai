@@ -1,4 +1,4 @@
-# probe/extract-text.py — pypdf 提取 PDF 文本 → research/<name>.txt
+# research/probes/extract-text.py — pypdf 提取 PDF 文本 → research/<name>.txt
 import sys
 from pypdf import PdfReader
 

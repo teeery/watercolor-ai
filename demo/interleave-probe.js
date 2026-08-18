@@ -1,10 +1,10 @@
-// probe/interleave-probe.js — 一笔之内"沉积-模拟交错"的预算与效果量化
+// demo/interleave-probe.js — 一笔之内"沉积-模拟交错"的预算与效果量化
 // 问题：真实作画时,长笔画的前段在笔还在画后段时就已经在蒸发。
 //       现引擎是"整笔沉积完 → 统一 step",一笔之内没有时间流动。
 //       交错方案:每 N 戳沉积一块 → engine.step(k) → 继续。
 //       本探针量化:① 一笔的真实作画时长 ② 压缩到多少模拟步(预算)
 //       ③ 前段在笔画完成时的干燥程度(效果) ④ 全场景成本。
-// 用法：node probe/interleave-probe.js
+// 用法：node demo/interleave-probe.js
 
 const VSCALE = 60;       // speed=1 → 60 px/s
 const EVAP = 0.010;      // 引擎蒸发率/步(engine.js p.evap)

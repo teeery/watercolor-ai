@@ -5,7 +5,7 @@
 - 纯 JS 实现五工件，typed array，零依赖，Node 可跑：`src/engine.js` 等（实现说明见 `docs/engine-js.md`）。
 - 手绘 31 笔 demo：湿铺 / 干皴 / 回流开花（清水滴）/ 颗粒沉淀 / 溅点 / 洗色 / 干燥时间线。
 - 产出：`out/compare.png`（引擎 vs 平涂对比）+ `out/drying_timeline.gif`（10 秒真实干燥）+ `out/evolution.gif`（作画全过程）+ 特写与阶段快照。
-- 门槛评估（vision 独立评审）：整体 6.5/10，背景湿铺 8/10，回流开花特写 6.5-7/10；对照基准 Open-Watercolor-Sim 2.5-3/10（探测记录见 `probe/OWS-评估.md`）。**"水是真的"过半，继续 Phase 1；物体笔触品味留待 agent 层解决。**
+- 门槛评估（vision 独立评审）：整体 6.5/10，背景湿铺 8/10，回流开花特写 6.5-7/10；对照基准 Open-Watercolor-Sim 2.5-3/10（探测记录见 `research/probes/OWS-评估.md`）。**"水是真的"过半，继续 Phase 1；物体笔触品味留待 agent 层解决。**
 - 探测结论：8 个候选开源引擎无一可被 agent 直接驱动（均为交互式应用）；借用"算法"（Hobbs/Curtis）而非"程序"的路线得到验证。
 
 ## Phase 1 — 接入 LLM（约 1 周）

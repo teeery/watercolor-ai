@@ -381,4 +381,4 @@ node demo/showcase.js      # 能力展示集归档（out/showcase/）
 #   PowerShell: $env:COLOR_SYSTEM="spectral"; node demo/render-demo.js
 ```
 
-评分轨迹、参数表、bug 清单与验收口径见仓库 `chronicle/` 与 `docs/`；对照基准探测全记录见 `probe/`；文献精读与归属核对见 `research/`。
+评分轨迹、参数表、bug 清单与验收口径见仓库 `chronicle/` 与 `docs/`；对照基准探测全记录见 `research/probes/`；文献精读与归属核对见 `research/`。

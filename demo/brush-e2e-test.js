@@ -1,7 +1,7 @@
-// probe/brush-e2e-test.js — 新管线端到端:真引擎 + 守恒断言 + PNG 级确定性 + legacy 冒烟
-// 用法: node probe/brush-e2e-test.js
+// demo/brush-e2e-test.js — 新管线端到端:真引擎 + 守恒断言 + PNG 级确定性 + legacy 冒烟
+// 用法: node demo/brush-e2e-test.js
 import { createStudio } from "../src/studio/studio.js";
-import { scene } from "../demo/scene.js";
+import { scene } from "./scene.js";
 
 let failures = 0;
 const ok = (name, cond, detail = "") => {

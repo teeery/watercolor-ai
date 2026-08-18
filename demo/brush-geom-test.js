@@ -1,5 +1,5 @@
-// probe/brush-geom-test.js — 毛层与足迹的几何冒烟测试
-// 用法: node probe/brush-geom-test.js
+// demo/brush-geom-test.js — 毛层与足迹的几何冒烟测试
+// 用法: node demo/brush-geom-test.js
 import { Bristles } from "../src/brush/bristles.js";
 import { paintFootprint } from "../src/brush/footprints.js";
 import { mulberry32 } from "../src/paper/prng.js";
