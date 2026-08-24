@@ -25,6 +25,37 @@ export function msePsnr(a, b) {
   return { mse, psnr: mse > 0 ? 10 * Math.log10(1 / mse) : Infinity };
 }
 
+/** 可分离 3 通道 box blur（radius 像素，边界 clamped）——频率消融用：抹平子网格纹理 */
+export function boxBlurRGB(frgb, w, h, radius) {
+  if (radius <= 0) return frgb;
+  const clampI = (i, n) => (i < 0 ? 0 : i >= n ? n - 1 : i);
+  const tmp = new Float32Array(frgb.length);
+  const out = new Float32Array(frgb.length);
+  const inv = 1 / (2 * radius + 1);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let c = 0; c < 3; c++) {
+      let acc = 0;
+      for (let x = -radius; x <= radius; x++) acc += frgb[(row + clampI(x, w)) * 3 + c];
+      for (let x = 0; x < w; x++) {
+        tmp[(row + x) * 3 + c] = acc * inv;
+        acc += frgb[(row + clampI(x + radius + 1, w)) * 3 + c] - frgb[(row + clampI(x - radius, w)) * 3 + c];
+      }
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let c = 0; c < 3; c++) {
+      let acc = 0;
+      for (let y = -radius; y <= radius; y++) acc += tmp[(clampI(y, h) * w + x) * 3 + c];
+      for (let y = 0; y < h; y++) {
+        out[(y * w + x) * 3 + c] = acc * inv;
+        acc += tmp[(clampI(y + radius + 1, h) * w + x) * 3 + c] - tmp[(clampI(y - radius, h) * w + x) * 3 + c];
+      }
+    }
+  }
+  return out;
+}
+
 const ALPHA = { rect: 0.62, ellipse: 0.65, poly: 0.85, ribbon: 0.8, spatter: 0.9 };
 
 // 阶段化类型权重：早段重 wash（rect/ellipse），晚段重 detail（ribbon/poly/spatter）
@@ -75,9 +106,10 @@ function propose(type, w, h, rnd, sampler, t, opts) {
   let ci;
   if (rnd() < 0.82) ci = sampler.sample(rnd); else ci = (rnd() * (w * h)) | 0;
   const cx = (ci % w), cy = (ci / w) | 0;
-  const s = { type, color: [0, 0, 0], alpha: ALPHA[type] };
+  const s = { type, color: [0, 0, 0], alpha: opts.opaque ? 0.98 : ALPHA[type] };
   const U = (lo, hi) => lo + rnd() * (hi - lo);
-  const sf = opts.sharpFine ? lerp(1, 0.42, t) : 1; // 细段更硬边（消「失焦」软边成片）
+  let sf = opts.sharpFine ? lerp(1, 0.42, t) : 1; // 细段更硬边（消「失焦」软边成片）
+  if (opts.hard) sf *= 0.15; // 硬边模式：软边近零（杀软剪影）
   if (type === "rect") {
     const rw = U(lerp(180, 5, t), lerp(470, 46, t));
     const rh = U(lerp(140, 5, t), lerp(360, 42, t));
@@ -128,13 +160,13 @@ function propose(type, w, h, rnd, sampler, t, opts) {
  */
 export function fitFlat(target, {
   w = 480, h = 640, seed = 7, maxStrokes = 160, candidates = 96, logEvery = 1,
-  spatterWeight = 1, sharpFine = true,
+  spatterWeight = 1, sharpFine = true, opaque = false, hard = false,
 } = {}) {
   const canvas = new FlatCanvas(w, h);
   const rnd = mulberry32(seed);
   const strokes = [];
   const history = [];
-  const opts = { spatterWeight, sharpFine };
+  const opts = { spatterWeight, sharpFine, opaque, hard };
 
   for (let step = 0; step < maxStrokes; step++) {
     const t = step / maxStrokes;
