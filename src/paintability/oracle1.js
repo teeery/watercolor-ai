@@ -181,3 +181,55 @@ export function replay(strokes, w, h) {
   for (const s of strokes) canvas.paint(s);
   return canvas;
 }
+
+/**
+ * 颜色精修：固定几何与 alpha，坐标下降求全局最优颜色。
+ * 依据：平面 alpha-over 合成对每笔颜色是线性的 → 目标是最小二乘 → 凸 → 坐标下降收敛到全局最优。
+ * 每笔颜色 c_k 在终稿中的系数 g = alpha·mask·S（S = 其后所有笔的透射率乘积），
+ * 逆序扫描维持 S，避开了前缀积下溢（S∈[0,1]，下溢到 0 只是「该笔对像素不可见」，无害）。
+ * 意义：greedy 只做了「插入时逐笔最优色」，这里是固定几何下的联合最优——两者之差即 greedy 在颜色维度留下的余量。
+ */
+export function refineColors(target, canvas, strokes, { passes = 3 } = {}) {
+  const n = canvas.n;
+  const N = strokes.length;
+  if (N === 0) return { mse: msePsnr(target, canvas.rgb).mse };
+  const S = new Float32Array(n);
+  const g = new Float32Array(n);
+  for (let pass = 0; pass < passes; pass++) {
+    S.fill(1);
+    for (let k = N - 1; k >= 0; k--) {
+      const s = strokes[k];
+      const m = canvas.fillMask(s);
+      const a = s.alpha;
+      let den = 0, numR = 0, numG = 0, numB = 0;
+      for (let p = 0; p < n; p++) {
+        const gp = a * m[p] * S[p];
+        g[p] = gp;
+        if (gp <= 0) continue;
+        const o = p * 3;
+        den += gp * gp;
+        numR += (target[o] - canvas.rgb[o]) * gp;
+        numG += (target[o + 1] - canvas.rgb[o + 1]) * gp;
+        numB += (target[o + 2] - canvas.rgb[o + 2]) * gp;
+      }
+      if (den > 1e-12) {
+        const dR = numR / den, dG = numG / den, dB = numB / den;
+        const c = s.color;
+        c[0] = Math.min(1, Math.max(0, c[0] + dR));
+        c[1] = Math.min(1, Math.max(0, c[1] + dG));
+        c[2] = Math.min(1, Math.max(0, c[2] + dB));
+        for (let p = 0; p < n; p++) {
+          const gp = g[p];
+          if (gp <= 0) continue;
+          const o = p * 3;
+          canvas.rgb[o] += dR * gp;
+          canvas.rgb[o + 1] += dG * gp;
+          canvas.rgb[o + 2] += dB * gp;
+        }
+      }
+      for (let p = 0; p < n; p++) S[p] *= (1 - a * m[p]);
+    }
+  }
+  const { mse, psnr } = msePsnr(target, canvas.rgb);
+  return { mse, psnr };
+}

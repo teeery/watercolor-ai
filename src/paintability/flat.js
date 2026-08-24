@@ -157,14 +157,20 @@ export class FlatCanvas {
     return m;
   }
 
-  /** 一笔：按类型填 mask → 颜色 + 不透明度 alpha-over 合成 */
-  paint(stroke) {
+  /** 按类型填 this._mask（覆盖 0..1），返回 mask 引用——paint 与颜色精修共用 */
+  fillMask(stroke) {
     const t = stroke.type;
     if (t === "rect") this.rect(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.soft ?? 3);
     else if (t === "ellipse") this.ellipse(stroke.cx, stroke.cy, stroke.rx, stroke.ry, stroke.soft ?? 4);
     else if (t === "poly") this.poly(stroke.points, stroke.soft ?? 2);
     else if (t === "ribbon") this.ribbon(stroke.path, { radius: stroke.radius ?? 20, radiusEnd: stroke.radiusEnd ?? null, soft: stroke.soft ?? 3 });
     else throw new Error(`FlatCanvas: unknown stroke type ${t}`);
+    return this._mask;
+  }
+
+  /** 一笔：按类型填 mask → 颜色 + 不透明度 alpha-over 合成 */
+  paint(stroke) {
+    this.fillMask(stroke);
     const [cr, cg, cb] = stroke.color;
     const alpha = stroke.alpha ?? 0.8;
     const { rgb: buf, _mask: m, n } = this;

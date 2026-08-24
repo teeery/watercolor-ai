@@ -122,6 +122,7 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 - `docs/taste.md` — 品味观与手文件：品味不生成、被继承被选择；人是唯一神谕；产品四档（看/画/同画/传）
 - `docs/teaching-mvp.md` — Phase 1 第一刀：教学回放 MVP 的范围切割（教不会画的）
 - `docs/paintability.md` — 可画性基准：十基元电池 + oracle 下限——先证引擎可画，再谈 AI
+- `docs/oracle1.md` — **Oracle 1 结果**：平面笔触拟合《乡村田野》低位平台 ≈17.5 dB → 裁决「先补笔触表示」
 - `docs/paintable-representation.md` — 可绘制表征 Z + 逆水彩分解——画家操作的不是对象
 - `docs/lessons.md` — dsh-studio 实战教训（本项目的需求输入）
 - `docs/predecessors.md` — 介质引擎/流体求解前辈调研（Tyler Hobbs、Rebelle、MoXi 等）
@@ -143,6 +144,7 @@ node demo/crop.js          # 回流开花 / 颗粒特写
 ## 下一步（存档后恢复路径）
 
 1. 读 `chronicle/06-接入实测与反思.md` 与 `docs/reflection-painter-loop.md` 终局（病灶 / 处方 / 未决清单）。
-2. **Oracle 1**：可微平面笔触拟合《乡村田野》——回答"表示够不够"，三分支裁决（见 `docs/paintability.md`、`docs/paintable-representation.md`）。
-3. 可画性十基元电池出第一版成绩卡（agent 循环上线前的硬前置）。
-4. 之后回到 Phase 1 接入：stroke 协议定稿、dsh-studio 循环骨架移植、vision 阶段批评接入（`docs/agent-loop.md`）。
+2. ~~**Oracle 1**：可微平面笔触拟合《乡村田野》~~ ✅ 已由自治循环完成——结论：平面**低位平台** ≈17.5 dB PSNR，三分支落「**先补笔触表示**」，见 `docs/oracle1.md`。
+3. **复证 + 补表示**：几何精修询问真 oracle floor，补 `spatter`/`lift`/硬边原语顶开可达域天花板（`docs/oracle1.md`「复证」）。
+4. 可画性十基元电池出第一版成绩卡（agent 循环上线前的硬前置）。
+5. 之后回到 Phase 1 接入：stroke 协议定稿、dsh-studio 循环骨架移植、vision 阶段批评接入（`docs/agent-loop.md`）。

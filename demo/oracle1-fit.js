@@ -6,7 +6,7 @@
 //   curve.png       mse-vs-笔数 误差曲线
 //   strokes.json    全笔触 recipe + 误差历史（可复现重放）
 // 用法：node demo/oracle1-fit.js [maxStrokes=160] [candidates=96]
-import { fitFlat, loadTarget, msePsnr } from "../src/paintability/oracle1.js";
+import { fitFlat, refineColors, loadTarget, msePsnr } from "../src/paintability/oracle1.js";
 import { decodePNG, resizeRGBAtoRGB, writePNG } from "../src/io/png.js";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
@@ -25,7 +25,9 @@ if (!existsSync(REF)) {
 const t0 = performance.now();
 const target = loadTarget(REF, W, H);
 const { strokes, history, canvas } = fitFlat(target, { w: W, h: H, maxStrokes, candidates, seed: 7 });
-const { mse, psnr } = msePsnr(target, canvas.rgb);
+const { mse: greedyMse, psnr: greedyPsnr } = msePsnr(target, canvas.rgb);
+const refined = refineColors(target, canvas, strokes, { passes: 3 });
+const mse = refined.mse, psnr = refined.psnr;
 const dt = ((performance.now() - t0) / 1000).toFixed(1);
 
 function toRGBA(frgb, w, h, upscale) {
@@ -66,11 +68,11 @@ writePNG(`${OUT}/montage.png`, mont, MW, H);
 // 误差曲线
 writePNG(`${OUT}/curve.png`, ...plotCurve(history));
 
-const rec = { config: { w: W, h: H, maxStrokes, candidates, seed: 7 }, history, mse, psnr, elapsedSec: dt };
+const rec = { config: { w: W, h: H, maxStrokes, candidates, seed: 7 }, history, greedy: { mse: greedyMse, psnr: greedyPsnr }, refined: { mse, psnr }, elapsedSec: dt };
 writeFileSync(`${OUT}/strokes.json`, JSON.stringify(strokes, null, 0));
 writeFileSync(`${OUT}/report.json`, JSON.stringify(rec, null, 2));
 
-console.log(`[oracle1] strokes=${strokes.length} mse=${mse.toFixed(6)} psnr=${psnr.toFixed(2)}dB elapsed=${dt}s`);
+console.log(`[oracle1] strokes=${strokes.length} greedy mse=${greedyMse.toFixed(6)} (${greedyPsnr.toFixed(2)}dB) -> refined mse=${mse.toFixed(6)} (${psnr.toFixed(2)}dB) elapsed=${dt}s`);
 console.log(`[oracle1] curve: ${history.map((p) => `${p.strokes}:${p.mse.toFixed(5)}`).join("  ")}`);
 console.log(`[oracle1] wrote out/oracle1/ (reference.png flat_final.png montage.png curve.png strokes.json report.json)`);
 
