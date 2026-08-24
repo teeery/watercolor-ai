@@ -25,16 +25,17 @@ export function msePsnr(a, b) {
   return { mse, psnr: mse > 0 ? 10 * Math.log10(1 / mse) : Infinity };
 }
 
-const ALPHA = { rect: 0.62, ellipse: 0.65, poly: 0.85, ribbon: 0.8 };
+const ALPHA = { rect: 0.62, ellipse: 0.65, poly: 0.85, ribbon: 0.8, spatter: 0.9 };
 
-// 阶段化类型权重：早段重 wash（rect/ellipse），晚段重 detail（ribbon/poly）
-const COARSE = [["rect", 0.34], ["ellipse", 0.34], ["poly", 0.10], ["ribbon", 0.22]];
-const FINE = [["rect", 0.04], ["ellipse", 0.04], ["poly", 0.10], ["ribbon", 0.82]];
+// 阶段化类型权重：早段重 wash（rect/ellipse），晚段重 detail（ribbon/poly/spatter）
+const COARSE = [["rect", 0.34], ["ellipse", 0.34], ["poly", 0.10], ["ribbon", 0.22], ["spatter", 0.0]];
+const FINE = [["rect", 0.03], ["ellipse", 0.03], ["poly", 0.07], ["ribbon", 0.57], ["spatter", 0.30]];
 
-function blendType(t) {
-  const mix = { rect: 0, ellipse: 0, poly: 0, ribbon: 0 };
+function blendType(t, spatterWeight) {
+  // 早段 wash 重、晚段 detail 重；spatterWeight 缩放晚段颗粒占比（受控消融：0=禁用，1=满额）
+  const mix = { rect: 0, ellipse: 0, poly: 0, ribbon: 0, spatter: 0 };
   for (const [ty, c] of COARSE) mix[ty] += c * (1 - t);
-  for (const [ty, f] of FINE) mix[ty] += f * t;
+  for (const [ty, f] of FINE) mix[ty] += (ty === "spatter" ? f * spatterWeight : f) * t;
   return mix;
 }
 
@@ -70,22 +71,23 @@ function buildSampler(target, canvas) {
 }
 
 /** 生成一个候选笔触：尺寸取进度 t 决定的「尺寸带」[lo,hi]，颜色由打分时校正 */
-function propose(type, w, h, rnd, sampler, t) {
+function propose(type, w, h, rnd, sampler, t, opts) {
   let ci;
   if (rnd() < 0.82) ci = sampler.sample(rnd); else ci = (rnd() * (w * h)) | 0;
   const cx = (ci % w), cy = (ci / w) | 0;
   const s = { type, color: [0, 0, 0], alpha: ALPHA[type] };
   const U = (lo, hi) => lo + rnd() * (hi - lo);
+  const sf = opts.sharpFine ? lerp(1, 0.42, t) : 1; // 细段更硬边（消「失焦」软边成片）
   if (type === "rect") {
     const rw = U(lerp(180, 5, t), lerp(470, 46, t));
     const rh = U(lerp(140, 5, t), lerp(360, 42, t));
     const x0 = cx - rw * (0.3 + rnd() * 0.7), y0 = cy - rh * (0.3 + rnd() * 0.7);
-    s.x0 = x0; s.y0 = y0; s.x1 = x0 + rw; s.y1 = y0 + rh; s.soft = 5 + rnd() * 12;
+    s.x0 = x0; s.y0 = y0; s.x1 = x0 + rw; s.y1 = y0 + rh; s.soft = (5 + rnd() * 12) * sf;
   } else if (type === "ellipse") {
     s.cx = cx; s.cy = cy;
     s.rx = Math.max(2, U(lerp(110, 5, t), lerp(210, 30, t)));
     s.ry = Math.max(2, U(lerp(130, 5, t), lerp(270, 36, t)));
-    s.soft = 4 + rnd() * 8;
+    s.soft = (4 + rnd() * 8) * sf;
   } else if (type === "poly") {
     const k = 3 + ((rnd() * 3) | 0);
     const pts = [];
@@ -94,8 +96,8 @@ function propose(type, w, h, rnd, sampler, t) {
       const ang = (i / k) * Math.PI * 2 + rnd() * 0.6;
       pts.push([cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad]);
     }
-    s.points = pts; s.soft = 2 + rnd() * 4;
-  } else { // ribbon
+    s.points = pts; s.soft = (2 + rnd() * 4) * sf;
+  } else if (type === "ribbon") {
     const nPt = 2 + ((rnd() * 2) | 0);
     const ang = rnd() * Math.PI * 2;
     const len = U(lerp(110, 10, t), lerp(230, 90, t));
@@ -106,7 +108,17 @@ function propose(type, w, h, rnd, sampler, t) {
       path.push([cx + dx * len * tt + (rnd() - 0.5) * 26, cy + dy * len * tt + (rnd() - 0.5) * 26]);
     }
     s.path = path; s.radius = Math.max(1, U(lerp(20, 1.5, t), lerp(32, 20, t)));
-    s.radiusEnd = s.radius * (0.4 + rnd() * 0.8); s.soft = 1.5 + rnd() * 4;
+    s.radiusEnd = s.radius * (0.4 + rnd() * 0.8); s.soft = (1.5 + rnd() * 4) * sf;
+  } else { // spatter：颗粒纹理（麦穗/石墙/草丛的高频斑点，deterministic drops）
+    const count = 8 + ((rnd() * 34) | 0);
+    const spread = U(lerp(26, 6, t), lerp(70, 40, t));
+    const drops = [];
+    for (let d = 0; d < count; d++) {
+      const ang = rnd() * Math.PI * 2;
+      const dist = Math.sqrt(rnd()) * spread;
+      drops.push({ x: cx + Math.cos(ang) * dist, y: cy + Math.sin(ang) * dist, r: 0.6 + rnd() * 2.0 });
+    }
+    s.drops = drops;
   }
   return s;
 }
@@ -116,23 +128,26 @@ function propose(type, w, h, rnd, sampler, t) {
  */
 export function fitFlat(target, {
   w = 480, h = 640, seed = 7, maxStrokes = 160, candidates = 96, logEvery = 1,
+  spatterWeight = 1, sharpFine = true,
 } = {}) {
   const canvas = new FlatCanvas(w, h);
   const rnd = mulberry32(seed);
   const strokes = [];
   const history = [];
+  const opts = { spatterWeight, sharpFine };
 
   for (let step = 0; step < maxStrokes; step++) {
     const t = step / maxStrokes;
-    const mixer = blendType(t);
+    const mixer = blendType(t, spatterWeight);
     const sampler = buildSampler(target, canvas);
     let best = null;
     for (let c = 0; c < candidates; c++) {
       const ty = pickType(mixer, rnd);
-      const s = propose(ty, w, h, rnd, sampler, t);
+      const s = propose(ty, w, h, rnd, sampler, t, opts);
       if (ty === "rect") canvas.rect(s.x0, s.y0, s.x1, s.y1, s.soft);
       else if (ty === "ellipse") canvas.ellipse(s.cx, s.cy, s.rx, s.ry, s.soft);
       else if (ty === "poly") canvas.poly(s.points, s.soft);
+      else if (ty === "spatter") canvas.spatter(s.drops, {});
       else canvas.ribbon(s.path, { radius: s.radius, radiusEnd: s.radiusEnd, soft: s.soft });
 
       const m = canvas._mask;
@@ -180,6 +195,66 @@ export function replay(strokes, w, h) {
   const canvas = new FlatCanvas(w, h);
   for (const s of strokes) canvas.paint(s);
   return canvas;
+}
+
+/** 深拷贝一笔（保留 color/alpha 与几何字段） */
+function cloneStroke(s) {
+  return JSON.parse(JSON.stringify(s));
+}
+
+/** 就地扰动一笔的几何（小步随机抖动；poly/ribbon 逐点抖，width/radius 百分比抖） */
+function perturbGeometry(s, rnd) {
+  const j = () => (rnd() - 0.5) * 2;
+  const jp = (v, scale) => v + j() * scale;
+  if (s.type === "rect") {
+    const cxp = (s.x0 + s.x1) / 2, cyp = (s.y0 + s.y1) / 2;
+    const hs = 6, w = (s.x1 - s.x0) / 2, hgt = (s.y1 - s.y0) / 2;
+    const ncxp = jp(cxp, hs), ncyp = jp(cyp, hs);
+    const nw = Math.max(3, w * (1 + j() * 0.15)), nh = Math.max(3, hgt * (1 + j() * 0.15));
+    s.x0 = ncxp - nw; s.x1 = ncxp + nw; s.y0 = ncyp - nh; s.y1 = ncyp + nh;
+  } else if (s.type === "ellipse") {
+    s.cx = jp(s.cx, 6); s.cy = jp(s.cy, 6);
+    s.rx = Math.max(2, s.rx * (1 + j() * 0.15)); s.ry = Math.max(2, s.ry * (1 + j() * 0.15));
+  } else if (s.type === "poly") {
+    for (const p of s.points) { p[0] = jp(p[0], 6); p[1] = jp(p[1], 6); }
+  } else if (s.type === "ribbon") {
+    for (const p of s.path) { p[0] = jp(p[0], 6); p[1] = jp(p[1], 6); }
+    s.radius = Math.max(1, s.radius * (1 + j() * 0.2));
+    s.radiusEnd = Math.max(1, s.radiusEnd * (1 + j() * 0.2));
+  } else if (s.type === "spatter") {
+    for (const d of s.drops) { d.x = jp(d.x, 4); d.y = jp(d.y, 4); }
+  }
+}
+
+/**
+ * 几何精修：对细段（refineFrom 之后）每笔做 kPerturb 次随机扰动、整图重渲染评估、保优。
+ * 非凸 → 只在贪心几何的邻域内做局部下降；配合 refineColors（凸颜色最优）逼近「几何局部最优 + 颜色全局最优」。
+ * 代价：每笔 (1+kPerturb) 次全渲染，O(rounds·(N-refineFrom)·kPerturb·N·n)——细段多、预算多时较慢，按需收口。
+ */
+export function refineGeometry(target, canvas, strokes, { refineFrom = 0.5, kPerturb = 6, rounds = 1, seed = 99 } = {}) {
+  const N = strokes.length, start = Math.floor(N * refineFrom);
+  const rnd = mulberry32(seed);
+  const render = (kOverride = -1, cand = null) => {
+    canvas.reset();
+    for (let i = 0; i < N; i++) canvas.paint(i === kOverride ? cand : strokes[i]);
+  };
+  for (let r = 0; r < rounds; r++) {
+    for (let k = start; k < N; k++) {
+      render();
+      let bestLoss = msePsnr(target, canvas.rgb).mse;
+      let bestStroke = null;
+      for (let j = 0; j < kPerturb; j++) {
+        const cand = cloneStroke(strokes[k]);
+        perturbGeometry(cand, rnd);
+        render(k, cand);
+        const L = msePsnr(target, canvas.rgb).mse;
+        if (L < bestLoss) { bestLoss = L; bestStroke = cand; }
+      }
+      if (bestStroke) strokes[k] = bestStroke;
+    }
+    render();
+  }
+  return msePsnr(target, canvas.rgb);
 }
 
 /**

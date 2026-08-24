@@ -5,8 +5,8 @@
 //   montage.png     参照 | 平面拟合 | 引擎干画 copy-final 三栏
 //   curve.png       mse-vs-笔数 误差曲线
 //   strokes.json    全笔触 recipe + 误差历史（可复现重放）
-// 用法：node demo/oracle1-fit.js [maxStrokes=160] [candidates=96]
-import { fitFlat, refineColors, loadTarget, msePsnr } from "../src/paintability/oracle1.js";
+// 用法：node demo/oracle1-fit.js [maxStrokes=160] [candidates=96] [spatterWeight=1] [sharpFine=1] [geomRefine=0]
+import { fitFlat, refineColors, refineGeometry, loadTarget, msePsnr } from "../src/paintability/oracle1.js";
 import { decodePNG, resizeRGBAtoRGB, writePNG } from "../src/io/png.js";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 
@@ -15,6 +15,9 @@ mkdirSync(OUT, { recursive: true });
 const W = 480, H = 640;
 const maxStrokes = parseInt(process.argv[2] ?? "160", 10);
 const candidates = parseInt(process.argv[3] ?? "96", 10);
+const spatterWeight = parseFloat(process.argv[4] ?? "1");
+const sharpFine = (process.argv[5] ?? "1") !== "0";
+const geomRefine = (process.argv[6] ?? "0") !== "0";
 const REF = "out/copy-ref/乡村田野.png";
 
 if (!existsSync(REF)) {
@@ -24,8 +27,9 @@ if (!existsSync(REF)) {
 
 const t0 = performance.now();
 const target = loadTarget(REF, W, H);
-const { strokes, history, canvas } = fitFlat(target, { w: W, h: H, maxStrokes, candidates, seed: 7 });
+const { strokes, history, canvas } = fitFlat(target, { w: W, h: H, maxStrokes, candidates, seed: 7, spatterWeight, sharpFine });
 const { mse: greedyMse, psnr: greedyPsnr } = msePsnr(target, canvas.rgb);
+const geom = geomRefine ? refineGeometry(target, canvas, strokes, { refineFrom: 0.5, kPerturb: 4, rounds: 1 }) : null;
 const refined = refineColors(target, canvas, strokes, { passes: 3 });
 const mse = refined.mse, psnr = refined.psnr;
 const dt = ((performance.now() - t0) / 1000).toFixed(1);
@@ -68,11 +72,12 @@ writePNG(`${OUT}/montage.png`, mont, MW, H);
 // 误差曲线
 writePNG(`${OUT}/curve.png`, ...plotCurve(history));
 
-const rec = { config: { w: W, h: H, maxStrokes, candidates, seed: 7 }, history, greedy: { mse: greedyMse, psnr: greedyPsnr }, refined: { mse, psnr }, elapsedSec: dt };
+const rec = { config: { w: W, h: H, maxStrokes, candidates, seed: 7, spatterWeight, sharpFine, geomRefine }, history, greedy: { mse: greedyMse, psnr: greedyPsnr }, geometry: geom, refined: { mse, psnr }, elapsedSec: dt };
 writeFileSync(`${OUT}/strokes.json`, JSON.stringify(strokes, null, 0));
 writeFileSync(`${OUT}/report.json`, JSON.stringify(rec, null, 2));
 
-console.log(`[oracle1] strokes=${strokes.length} greedy mse=${greedyMse.toFixed(6)} (${greedyPsnr.toFixed(2)}dB) -> refined mse=${mse.toFixed(6)} (${psnr.toFixed(2)}dB) elapsed=${dt}s`);
+const geomStr = geom ? ` geom=${geom.mse.toFixed(6)}(${geom.psnr.toFixed(2)}dB)` : "";
+console.log(`[oracle1] strokes=${strokes.length} greedy=${greedyPsnr.toFixed(2)}dB${geomStr} -> refined=${psnr.toFixed(2)}dB elapsed=${dt}s`);
 console.log(`[oracle1] curve: ${history.map((p) => `${p.strokes}:${p.mse.toFixed(5)}`).join("  ")}`);
 console.log(`[oracle1] wrote out/oracle1/ (reference.png flat_final.png montage.png curve.png strokes.json report.json)`);
 

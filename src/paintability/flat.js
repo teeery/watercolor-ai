@@ -16,6 +16,14 @@ export class FlatCanvas {
 
   clearMask() { this._mask.fill(0); }
 
+  /** 重置画布为纸色（几何精修反复重渲染用） */
+  reset(paper = [0.99, 0.975, 0.94]) {
+    for (let i = 0; i < this.n; i++) {
+      const o = i * 3;
+      this.rgb[o] = paper[0]; this.rgb[o + 1] = paper[1]; this.rgb[o + 2] = paper[2];
+    }
+  }
+
   /** 软边矩形（cover 原语）→ 覆盖 mask */
   rect(x0, y0, x1, y1, soft = 3) {
     const { w, h, _mask: m } = this;
@@ -157,6 +165,29 @@ export class FlatCanvas {
     return m;
   }
 
+  /** 颗粒溅点（spatter）：一组软圆滴；drops 由调用方显式给出（确定性，无隐藏 RNG） */
+  spatter(drops, { softRatio = 0.4 } = {}) {
+    this.clearMask();
+    const { w, h, _mask: m } = this;
+    for (const d of drops) {
+      const r = Math.max(0.5, d.r);
+      const x0 = Math.max(0, Math.floor(d.x - r - 2)), x1 = Math.min(w - 1, Math.ceil(d.x + r + 2));
+      const y0 = Math.max(0, Math.floor(d.y - r - 2)), y1 = Math.min(h - 1, Math.ceil(d.y + r + 2));
+      const soft = r * softRatio + 0.5;
+      for (let y = y0; y <= y1; y++) {
+        const row = y * w;
+        for (let x = x0; x <= x1; x++) {
+          const dd = Math.hypot(x - d.x, y - d.y);
+          const v = 0.5 - (dd - r) / (2 * soft + 1e-6);
+          if (v <= 0) continue;
+          const i = row + x;
+          if (v > m[i]) m[i] = v > 1 ? 1 : v;
+        }
+      }
+    }
+    return m;
+  }
+
   /** 按类型填 this._mask（覆盖 0..1），返回 mask 引用——paint 与颜色精修共用 */
   fillMask(stroke) {
     const t = stroke.type;
@@ -164,6 +195,7 @@ export class FlatCanvas {
     else if (t === "ellipse") this.ellipse(stroke.cx, stroke.cy, stroke.rx, stroke.ry, stroke.soft ?? 4);
     else if (t === "poly") this.poly(stroke.points, stroke.soft ?? 2);
     else if (t === "ribbon") this.ribbon(stroke.path, { radius: stroke.radius ?? 20, radiusEnd: stroke.radiusEnd ?? null, soft: stroke.soft ?? 3 });
+    else if (t === "spatter") this.spatter(stroke.drops ?? [], {});
     else throw new Error(`FlatCanvas: unknown stroke type ${t}`);
     return this._mask;
   }
