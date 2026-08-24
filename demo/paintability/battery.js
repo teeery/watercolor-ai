@@ -124,7 +124,7 @@ const REPRESENTATION = {
   "2_curve": "可达(由构造: ribbon/poly)",
   "3_topology": "可达(由构造: poly/rect)",
   "4_edge": "可达(由构造: rect soft∈[0,16])",
-  "5_gradient": "部分可达(平滑渐变需∞步→条带地板)",
+  "5_gradient": "可达(单软边 rect=线性渐变, 实测 ~∞)",
   "6_glaze": "可达(由构造: ellipse alpha叠层)",
   "7_freq": "可达但=奈奎斯特壁(1px条纹)",
   "8_lift": "平涂代理可达; 真提色需介质引擎",

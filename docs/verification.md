@@ -110,6 +110,15 @@ node demo/paintability/oracle-line.js
 
 同一条直线，**随机贪心 6.6 dB、局部坐标下降 4.8 dB、全局参数扫描 172 dB（≈精确重建）**——三行数字并排，直接把「表示可达、求解器弱」钉死，不用信我转述。
 
+渐变的同样三行（约 15 秒）：
+
+```bash
+node demo/paintability/oracle-gradient.js
+# [single-soft-rect] ~152 dB | K=1/4/16/64/256 hard-stair 12.4→60.6 dB | [random-greedy] ~18.2 dB
+```
+
+一条全宽软边 rect 就精确重建线性渐变（~∞），条带地板只属于平色台阶（1/K²）与贪心盲区——「平滑渐变可达」由此实锤。
+
 ## 常见疑问
 
 ## 常见疑问
