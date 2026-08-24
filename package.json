@@ -8,6 +8,7 @@
   "scripts": {
     "demo": "node demo/render-demo.js",
     "demo:spectral": "set COLOR_SYSTEM=spectral&& node demo/render-demo.js",
+    "oracle1": "node demo/oracle1-fit.js",
     "agent": "node demo/agent-paint.js",
     "copy": "node demo/copy-paint.js",
     "showcase": "node demo/showcase.js",
