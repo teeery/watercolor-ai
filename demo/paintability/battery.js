@@ -117,6 +117,19 @@ const PRIMITIVES = [
   },
 ];
 
+// 表示层可达性（由构造判定 + oracle-line 实测背书）：
+// 用 c.paint 画出来的目标 → 表示可达是平凡真；直接写像素的目标（渐变/条纹）→ 才需要真 oracle 判。
+const REPRESENTATION = {
+  "1_line": "可达(由构造: ribbon)",
+  "2_curve": "可达(由构造: ribbon/poly)",
+  "3_topology": "可达(由构造: poly/rect)",
+  "4_edge": "可达(由构造: rect soft∈[0,16])",
+  "5_gradient": "部分可达(平滑渐变需∞步→条带地板)",
+  "6_glaze": "可达(由构造: ellipse alpha叠层)",
+  "7_freq": "可达但=奈奎斯特壁(1px条纹)",
+  "8_lift": "平涂代理可达; 真提色需介质引擎",
+};
+
 // ---- 度量：全局 MSE + 形状区域（footprint）MSE ----
 function footprintMetric(target, fit) {
   let n = 0, s = 0;
@@ -174,15 +187,15 @@ for (const p of PRIMITIVES) {
   const g = msePsnr(target, fit);
   const fp = footprintMetric(target, fit);
   const dt = ((performance.now() - t0) / 1000).toFixed(1);
-  summary.push({ id: p.id, title: p.title, globalPSNR: +g.psnr.toFixed(2), footprintPSNR: +fp.psnr.toFixed(2), footprintPx: fp.n, metric: "随机贪心求解下界（非可达域）" });
+  summary.push({ id: p.id, title: p.title, globalPSNR: +g.psnr.toFixed(2), footprintPSNR: +fp.psnr.toFixed(2), footprintPx: fp.n, representation: REPRESENTATION[p.id], greedyLowerBound: +fp.psnr.toFixed(2) });
   writeMontage(p.id, target, fit);
-  console.log(`[${p.id}] ${p.title}: 全局 ${g.psnr.toFixed(2)}dB | 形状区 ${fp.psnr.toFixed(2)}dB (${fp.n}px) => 求解下界（非可达域裁决）  (${dt}s)`);
+  console.log(`[${p.id}] ${p.title}: 贪心下界 ${fp.psnr.toFixed(2)}dB | 表示层 ${REPRESENTATION[p.id]}  (${dt}s)`);
 }
 
-console.log("\n=== 十基元电池 v0.1 成绩卡（随机贪心求解下界，NOT 可达域）===");
-console.log("id\ttitle\t形状区PSNR(下界)\t口径");
-for (const r of summary) console.log(`${r.id}\t${r.title}\t${r.footprintPSNR}\t${r.metric}`);
+console.log("\n=== 十基元电池 v0.1 成绩卡（表示层可达 vs 随机贪心下界）===");
+console.log("id\ttitle\t贪心下界\t表示层可达性");
+for (const r of summary) console.log(`${r.id}\t${r.title}\t${r.greedyLowerBound}\t${r.representation}`);
 console.log(`\n9_湿画湿边界 / 10_干燥细节保真：依赖介质引擎，v0.1 defer`);
-console.log(`⚠ 判读：这 8 个数字只说明随机贪心作为 oracle 太弱（连直线都搜不到）；要得到可达域结论需真 oracle + 介质引擎。`);
+console.log(`⚠ 判读：贪心下界低 ≠ 不可达（见 demo/paintability/oracle-line.js：同一线，贪心 6.6dB、全局网格 oracle 172dB）。表示层可达性才是 v0.1 的裁决。`);
 writeFileSync(`${OUT}/summary.json`, JSON.stringify(summary, null, 2));
 console.log(`\nwrote out/paintability/summary.json + 8 张 {target|fit|err}.png`);
