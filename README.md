@@ -12,25 +12,25 @@
 
 作品与理念。以下三幅画全部由仓库脚本一键复现（`npm run demo` / `agent` / `copy`）。
 
-### 《树与池塘》· 32 笔手绘全景 · vision 8.8/10
+### 《树与池塘》
 
 ![《树与池塘》终稿](paper/figures/fig_demo_full.png)
 
 ![作画全过程：一笔一笔画完](assets/panorama_evolution.gif)
 
-### 《三个柿子》· LLM 仅凭 stroke 协议写出的 75 笔静物 · vision 闭环 11 版定稿
+### 《三个柿子》
 
 ![《三个柿子》定稿](paper/figures/fig_still_life_final.png)
 
 ![作画全过程：LLM 构思 → vision 批评 → 改笔](assets/persimmons_evolution.gif)
 
-### 《乡村田野》· 83 笔临摹，笔序即叙事 · 6 轮闭环 5.0 → 6.5
+### 《乡村田野》
 
 ![原作（左）vs 引擎临摹（右）](paper/figures/fig_field_pair.png)
 
 ![逐笔作画过程](assets/field_strokes.gif)
 
-### 水彩的美是时间函数 · 10 秒真实干燥
+### 水彩的美是时间函数 · 10 秒真实干燥 gif图
 
 ![干燥时间线：蒸发 → 咖啡环 → 固着](assets/drying_timeline.gif)
 
@@ -53,7 +53,7 @@
 - **画 = 程序**：笔触列表是这幅画的源代码，引擎是解释器。同一张画可以换纸、换倾斜、重放干燥过程、在 8K 重渲染。
 - **作画即内容**：真实的干燥时间线让"进化动图"不再是几张图的轮播，而是时间流逝本身。
 
-## 当前状态（v0.3.0 · 最小发布存档版）
+## 当前状态（v0.3.0 · 存档版）
 
 > 2026-08-17 收工存档。恢复路径见文末「下一步」。
 
